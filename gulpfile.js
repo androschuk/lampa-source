@@ -1,43 +1,51 @@
-/** Что-бы все не пропало! **/
-process.on('uncaughtException', function (err) {
-    console.log(err)
+import { src, dest, series, parallel, task, watch } from 'gulp';
+import concat from 'gulp-concat';
+import uglifycss from 'gulp-uglifycss';
+import browserSync from 'browser-sync';
+import newer from 'gulp-newer';
+import gulpSass from 'gulp-sass'
+import * as dartSass from 'sass'
+import autoprefixer from 'gulp-autoprefixer';
+import fileinclude from 'gulp-file-include';
+import replace from 'gulp-replace';
+import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from 'fs';
+import path from 'path'
+import worker from 'rollup-plugin-web-worker-loader';
+import { createHash } from 'crypto';
+import source from 'vinyl-source-stream';
+import buffer from 'vinyl-buffer';
+import rollup from '@rollup/stream';
+import { join } from 'path';
+import { parse } from 'doctrine';
+import esbuild from 'rollup-plugin-esbuild';
+import terser from '@rollup/plugin-terser';
+import imagemin from 'gulp-imagemin';
+import commonjs from '@rollup/plugin-commonjs'; // Add support for require() syntax
+import nodeResolve from '@rollup/plugin-node-resolve'; // Add support for importing from node_modules folder like import x from 'module-name'
+import plumber from 'gulp-plumber'; //For error handling
+import gulpIf from 'gulp-if';
+
+function handleError(error) {
+    const msg = error?.message || error;
+    const stack = error?.stack || '';
+    console.error('❌ Gulp error:', msg);
+    if (stack && stack !== msg) 
+        console.error(stack);
+    this?.emit?.('end');
+}
+
+process.on('uncaughtException', error => {
+    console.error('❌ Uncaught exception:', error?.stack || error);
+    process.exit(1);
 });
 
+process.on('unhandledRejection', error => {
+    console.error('❌ Unhandled rejection:', error?.stack || error);
+    process.exit(1);
+});
 
-const { src, dest, series, parallel } = require('gulp');
-
-var concat         = require('gulp-concat'),
-    chokidar       = require('chokidar'),
-    uglify         = require('gulp-uglify-es').default,
-    uglifycss      = require('gulp-uglifycss'),
-    browser        = require('browser-sync').create(),
-    newer          = require('gulp-newer'),
-    sass           = require('gulp-sass')(require('sass')),
-    autoprefixer   = require('gulp-autoprefixer'),
-    fileinclude    = require('gulp-file-include'),
-    replace        = require('gulp-replace'),
-    fs             = require('fs'),
-    worker         = require('rollup-plugin-web-worker-loader'),
-    crypto         = require('crypto');
-
-var source = require('vinyl-source-stream');
-var buffer = require('vinyl-buffer');
-var rollup = require('@rollup/stream');
-var path   = require('path');
-
-var doctrine = require('doctrine');
-
-// *Optional* Depends on what JS features you want vs what browsers you need to support
-// *Not needed* for basic ES6 module import syntax support
-var babel = require('@rollup/plugin-babel').babel;
-// Add support for require() syntax
-var commonjs = require('@rollup/plugin-commonjs');
-// Add support for importing from node_modules folder like import x from 'module-name'
-var nodeResolve = require('@rollup/plugin-node-resolve');
-var regenerator = require('rollup-plugin-regenerator');
-
-
-var cache;
+const browser = browserSync.create()
+const sass = gulpSass(dartSass);
 
 var srcFolder = './src/';
 var dstFolder = './dest/';
@@ -47,253 +55,221 @@ var idxFolder = './index/';
 var plgFolder = './plugins/';
 var docFolder = './build/doc/';
 
+const cssAutoprefixerOptions = ['last 100 versions', '> 1%', 'ie 8', 'ie 7', 'ios 6', 'android 4'];
+
 var isDebugEnabled = false;
 
-function merge(done) {
-    let plugins = [babel({
-        babelHelpers: 'bundled',
-        presets: ['@babel/preset-env']
-    }), commonjs, nodeResolve, worker()]
-
-    rollup({
-        // Point to the entry file
-        input: srcFolder+"app.js",
-
-        // Apply plugins
-        plugins: plugins,
-
-        // Use cache for better performance
-        //cache: cache,
-
-        // Note: these options are placed at the root level in older versions of Rollup
-        output: {
-          // Output bundle is intended for use in browsers
-          // (iife = "Immediately Invoked Function Expression")
-          format: 'iife',
-          sourcemap: isDebugEnabled ? 'inline' : false
-        },
-
-        onwarn: function ( message ) {
-            return;
-        }
-      })
-      .on('bundle', function(bundle) {
-        // Update cache data after every bundle is created
-        //cache = bundle;
-      })
-
-      // Name of the output file.
-      .pipe(source('app.js'))
-      .pipe(buffer())
-      //.pipe(uglify())
+function buildAppJs() {
+      return prepareRollup(srcFolder, "app.js")
       .pipe(replace(/return kIsNodeJS/g, "return false"))
-      .pipe(replace(/return kIsNodeJS/g, "return false"))
-      // Where to send the output file
-      .pipe(dest(dstFolder));
+      .pipe(dest(dstFolder))
       
-    done();
 }
 
-function bubbleFile(name){
-    let plug = [babel({
-        babelHelpers: 'bundled',
-        presets: ['@babel/preset-env']
-    }), commonjs, nodeResolve]
-
-    rollup({
-        input: plgFolder+name,
-        plugins: plug,
+function prepareRollup(inputFolder, fileName){
+    return rollup({
+        input: join(inputFolder, fileName),
+        plugins: [
+            esbuild({ target: 'es2017' }),
+            commonjs, 
+            nodeResolve,
+            worker(),
+            terser()
+        ],
         output: {
           format: 'iife',
           sourcemap: isDebugEnabled ? 'inline' : false,
-          sourcemapPathTransform: isDebugEnabled ? pluginSourcemapPathTransform : undefined
         },
-        onwarn: function ( message ) {
-            return;
+        onwarn: msg => {
+          // console.warn(msg); TODO: temporary disable
         }
       })
-      .pipe(source(name))
+      .pipe(source(fileName))
+      .pipe(plumber({ errorHandler: handleError }))
       .pipe(buffer())
-      .pipe(fileinclude({
-        prefix: '@@',
-        basepath: '@file'
-      }))
-      .pipe(dest(dstFolder));
 }
 
-function getFileHash(path) {
-    const fileBuffer = fs.readFileSync(path);
-    const hashSum = crypto.createHash('md5');
-    hashSum.update(fileBuffer);
-    return hashSum.digest('hex');
+function getFileHash(filePath) {
+    try {
+        if (!existsSync(filePath)) {
+            console.error(`File not found: ${filePath}`);
+            return null;
+        }
+
+        const fileBuffer = readFileSync(path);
+        const hashSum = createHash('md5');
+        hashSum.update(fileBuffer);
+        return hashSum.digest('hex');
+    } catch (error) {
+        console.error(`Error reading file ${filePath}:`, error.message);
+        return null;
+    }    
 }
 
-function plugins(done) {
-    fs.readdirSync(plgFolder).filter(function (file) {
-        return fs.statSync(plgFolder+'/'+file).isDirectory();
-    }).forEach(folder => {
-        bubbleFile(folder+'/'+folder+'.js')
+function buildPlugins() {
+    const directories = readdirSync(plgFolder)
+        .filter(name => statSync(join(plgFolder, name)).isDirectory())
 
-        plugin_sass(plgFolder+'/'+folder)
-    });
-      
-    done();
-}
-
-function plugin_sass(plugin_src){
-    const css_dir = plugin_src + '/css';
-    
-    if (!fs.existsSync(css_dir)){
-        return Promise.resolve();
-    }
-
-    return src(css_dir + '/*.scss')
-        .pipe(sass.sync().on('error', sass.logError)) // Преобразуем Sass в CSS посредством gulp-sass
-        .pipe(autoprefixer(['last 100 versions', '> 1%', 'ie 8', 'ie 7', 'ios 6', 'android 4'], { cascade: true })) // Создаем префиксы
-        .pipe(uglifycss({
-            "maxLineLen": 80,
-            "uglyComments": true
-        }))
-        .pipe(replace(/\n/g, ''))
-        .pipe(replace(/"/g, "'"))
-        .pipe(dest(css_dir))
-}
-
-var copy_timer;
-
-/** Обновляем файл для WEB **/
-function build_web(done){
-    clearTimeout(copy_timer)
-
-    //таймер сила!
-    copy_timer = setTimeout(()=>{
-        src([dstFolder+'app.js']).pipe(dest(bulFolder+'web/'));
-
-        fs.readdirSync(dstFolder).filter(function (file) {
-            return fs.statSync(dstFolder+'/'+file).isDirectory();
-        }).forEach(folder => {
-            src([dstFolder+folder+'/'+folder+'.js']).pipe(dest(bulFolder+'web/plugins'));
+    const tasks = directories.map(folder => {
+        return new Promise((resolve, reject) => {
+            console.log(` - ${folder}`)
+            prepareRollup(plgFolder, `${folder}/${folder}.js`)
+            .pipe(fileinclude({
+                prefix: '@@',
+                basepath: '@file'
+            }))
+            .pipe(dest(dstFolder))
+            .on('end', resolve)
+            .on('error', reject);        
         });
-    },500)
+    });
+
+    return Promise.all(tasks);
+}
+
+function buildStyles({ inputGlob, outputDir, options = {} }) {
+    const {
+      uglify = { enabled: false },
+      replaceNewlines = false,
+      replaceQuotes = false
+    } = options;
+  
+    return src(inputGlob)
+      .pipe(plumber({ errorHandler: handleError }))
+      .pipe(sass.sync().on('error', sass.logError)) // Convert Sass to CSS
+      .pipe(autoprefixer({ overrideBrowserslist: cssAutoprefixerOptions, cascade: true }))
+      .pipe(gulpIf(uglify.enabled, uglifycss(uglify.options)))
+      .pipe(gulpIf(replaceNewlines, replace(/\n/g, '')))
+      .pipe(gulpIf(replaceQuotes, replace(/"/g, "'")))
+      .pipe(dest(outputDir))
+}
+
+function buildAppStyles() {
+    return buildStyles({
+      inputGlob: join(srcFolder, 'sass/*.scss'),
+      outputDir: join(pubFolder, 'css'),
+      options: {
+        uglify: { enabled: true }
+      }
+    });
+}
+
+function buildPluginStyles() {
+    return buildStyles({
+      inputGlob: join(plgFolder, '**/*.scss'),
+      outputDir: plgFolder,
+      options: {
+        replaceNewlines: true,
+        replaceQuotes: true,
+        uglify: {
+            enabled: true,
+            options: {
+              uglyComments: true,
+              maxLineLen: 120
+            }
+        }        
+      }
+    });
+}
+
+function copyAppJsToWeb(){
+    return src([dstFolder + 'app.js'])
+        .pipe(plumber({ errorHandler: handleError }))
+        .pipe(dest(bulFolder + 'web/'))
+}
+
+function copyPlugins(done){
+    readdirSync(dstFolder).filter( file => {
+        return statSync(dstFolder +'/' + file).isDirectory();
+    }).forEach(folder => {
+        src([dstFolder + folder + '/' + folder + '.js'])
+        .pipe(plumber({ errorHandler: handleError }))
+        .pipe(dest(bulFolder+'web/plugins'));
+    });
 
     done();
 }
 
-function write_manifest(done){
-    var manifest = fs.readFileSync(srcFolder+'utils/manifest.js', 'utf8')
-    var hash     = getFileHash(dstFolder + '/app.min.js')
+function buildManifest(done){
+    try {
+        var manifest = readFileSync(srcFolder + 'utils/manifest.js', 'utf8')
+        var hash     = getFileHash(dstFolder + '/app.min.js')
 
-    var app_version = manifest.match(/app_version: '(.*?)',/)[1]
-    var css_version = manifest.match(/css_version: '(.*?)',/)[1]
+        var app_version = manifest.match(/app_version: '(.*?)',/)[1]
+        var css_version = manifest.match(/css_version: '(.*?)',/)[1]
 
-    var object = {
-        app_version: app_version,
-        css_version: css_version,
-        css_digital: parseInt(css_version.replace(/\./g,'')),
-        app_digital: parseInt(app_version.replace(/\./g,'')),
-        time: Date.now(),
-        hash: hash
-    }
+        var manifestData = {
+            app_version: app_version,
+            css_version: css_version,
+            css_digital: parseInt(css_version.replace(/\./g,'')),
+            app_digital: parseInt(app_version.replace(/\./g,'')),
+            time: Date.now(),
+            hash: hash
+        }
 
-    console.log('assembly', object)
+        console.log('✅ Assembly info:', manifestData)
 
-    fs.writeFileSync(idxFolder+'github/assembly.json', JSON.stringify(object, null, 4))
+        writeFileSync(idxFolder+'github/assembly.json', JSON.stringify(manifestData, null, 4))
 
-    done()
-}
-
-/** Публикуем для WEB платформы **/
-function public_task(path){
-    return src(dstFolder + '/app.min.js').pipe(dest(bulFolder+path));
-}
-
-function lang_task(){
-    return src(srcFolder + '/lang/*.js').pipe(dest(pubFolder + '/lang'));
+        done();
+    } catch (error) {
+        console.error('❌ Error building manifest:', error.message);
+        done(error);
+    }        
 }
 
-function public_webos(){
-    return public_task('webos/');
-}
-function public_tizen(){
-    return public_task('tizen/');
-}
-function public_github(){
-    return public_task('github/lampa/');
+function copyAppMiniJs(path){
+    return src(dstFolder + '/app.min.js')
+        .pipe(plumber({ errorHandler: handleError }))
+        .pipe(dest(bulFolder + path + '/'))
 }
 
-function index_webos(){
-    return src(idxFolder + '/webos/**/*').pipe(dest(bulFolder+'webos/'));
-}
-function index_tizen(){
-    return src(idxFolder + '/tizen/**/*').pipe(dest(bulFolder+'tizen/'));
-}
-function index_github(){
-    return src(idxFolder + '/github/**/*').pipe(dest(bulFolder+'github/lampa/'));
+function copyLanguages(){
+    return src(srcFolder + '/lang/*.js')
+        .pipe(plumber({ errorHandler: handleError }))
+        .pipe(dest(pubFolder + '/lang'))
 }
 
-/** Сверяем файлы **/
-function sync_task(path){
-    return src([pubFolder + '**/*'])
-        .pipe(newer(bulFolder+path))
-        .pipe(dest(bulFolder+path));
+function copyIndexFolder(path){
+    return src(idxFolder + `/${path}/**/*`)
+        .pipe(plumber({ errorHandler: handleError }))
+        .pipe(dest(bulFolder + `${path}/`))
 }
 
-function sync_web(){
-    return sync_task('web/');
+function copyPublicFolder(path){
+    const destPath = join(bulFolder, path + '/');
+    return src(join(pubFolder, '**/*'), { encoding: false})
+        .pipe(plumber({ errorHandler: handleError }))
+        .pipe(newer(destPath))
+        .pipe(imagemin( { silent: false }))
+        .pipe(dest(destPath));
 }
-function sync_webos(){
-    return sync_task('webos/');
-}
-function sync_tizen(){
-    return sync_task('tizen/');
-}
-function sync_github(){
-    return sync_task('github/lampa/');
-}
-function sync_doc(){
+
+function copyDocFolder(){
     return src([idxFolder + 'doc/' + '**/*'])
+        .pipe(plumber({ errorHandler: handleError }))
         .pipe(newer(docFolder))
         .pipe(dest(docFolder));
 }
 
-/** Следим за изменениями в файлах **/
-function watch(done){
-    var watcher = chokidar.watch([srcFolder,pubFolder,plgFolder], { persistent: true, ignored: [pubFolder + '/lang']});
-
-    var timer;
-    var change = function(path){
-        clearTimeout(timer)
-
-        if(path.indexOf('.css') > -1) return;
-
-        timer = setTimeout(
-            series(merge, plugins, sass_task, lang_task, sync_web, build_web)
-        ,5000)
-    }
-
-    watcher.on('add', function(path) {
-        console.log('File', path, 'has been added');
-
-        change(path)
-    })
-    .on('change', function(path) {
-        console.log('File', path, 'has been changed');
-
-        change(path)
-    })
-    .on('unlink', function(path) {
-        console.log('File', path, 'has been unlink');
-
-        change(path)
-    })
+/** watch mode **/
+function watch_changes(done){
+    // src
+    watch('src/sass/*.scss', series(buildAppStyles, reloadBrowser));
+    watch(['src/**/*.js', '!src/lang/*.js'], series(buildAppJs, copyAppJsToWeb, reloadBrowser));
+    watch('src/lang/*.js', series(copyLanguages, reloadBrowser));
+    // plugins
+    watch('plugins/**/*.js', series(build_plugins, copyPlugins, reloadBrowser));
+    watch('plugins/**/*.scss', series(build_plugins, copyPlugins, reloadBrowser));
+    
 
     done();
 }
 
-function browser_sync(done) {
+function browser_syncup(done) {
     browser.init({
         server: {
-            baseDir: bulFolder+'web/'
+            baseDir: bulFolder + 'web/'
         },
         open: false,
         notify: false,
@@ -303,103 +279,120 @@ function browser_sync(done) {
     done();
 }
 
-function sass_task(){
-    return src(srcFolder+'/sass/*.scss')
-        .pipe(sass.sync().on('error', sass.logError)) // Преобразуем Sass в CSS посредством gulp-sass
-        .pipe(autoprefixer(['last 100 versions', '> 1%', 'ie 8', 'ie 7', 'ios 6', 'android 4'], { cascade: true })) // Создаем префиксы
-        .pipe(dest(pubFolder+'/css'))
-        .pipe(browser.reload({stream: true}))
-}
-
-function uglify_task() {
-    return src([dstFolder+'app.js']).pipe(concat('app.min.js')).pipe(dest(dstFolder));
-}
-
-function test(done){
-    lang_task()
+function reloadBrowser(done) {
+    browser.reload();
     done();
 }
 
-function enable_debug_mode(done){
-    console.log("build with sourcemaps!")
+function minifyAppJs() {
+    return src([dstFolder + 'app.js'])
+        .pipe(plumber({ errorHandler: handleError }))
+        .pipe(concat('app.min.js'))
+        .pipe(dest(dstFolder));
+}
+
+function enableDebugMode(done){
+    console.log("🔒 build with sourcemaps")
     isDebugEnabled = true;
     done()
 }
 
-/**
- * преобразует путь к исходному файлу
- * @param {string} relativeSourcePath 
- * @param {string} sourcemapPath 
- * @returns {string} a new path to source
- */
-function pluginSourcemapPathTransform(relativeSourcePath, sourcemapPath) {
-    const plgFolderLen = plgFolder.length-2;
-    const newPath = relativeSourcePath.substring(plgFolderLen);
-    return newPath;
-}
+function buildDocumentation(done) {
+    try {
+        const data = []
+        let scanned = 0
 
-function buildDoc(done){
-    let data = []
+        console.log('🔎 Scanning documents:')
 
-    function scan(directory){
-        let files = fs.readdirSync(directory)
+        function scan(directory){
+            readdirSync(directory)
+            .filter(file => path.extname(file) === '.js' || statSync(directory +'/' + file).isDirectory())
+            .forEach(file => {
+                const filePath = join(directory, file)
+                const stat = statSync(filePath)
 
-        files.forEach(file => {
-            let filePath = path.join(directory, file)
-            let stat = fs.statSync(filePath)
+                if (stat.isDirectory()){ 
+                    scan(filePath)
+                } else {
+                    scanned++
+                    const code = readFileSync(filePath, 'utf8') + ''
 
-            if (stat.isDirectory()) scan(filePath)
-            else{
-                let code = fs.readFileSync(filePath, 'utf8') + ''
+                    const comments = code.match(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm)
 
-                console.log('scan', filePath)
+                    if (!comments){
+                        return;
+                    }
+                    console.log(` - ${filePath}`)
 
-                let comments = code.match(/\/\*[\s\S]*?\*\/|([^:]|^)\/\/.*$/gm)
-
-                if(comments){
                     comments.forEach(comment => {
-                        let parsedComment = doctrine.parse(comment, { unwrap: true });
+                        try {
+                            const parsedComment = parse(comment, { unwrap: true });
 
-                        if(parsedComment.tags.find(t=>t.title == 'doc')){
-                            let params = parsedComment.tags.filter(t=>['doc','name','alias'].indexOf(t.title) == -1)
-                            let category = parsedComment.tags.find(t=>t.title == 'alias')
-                            let name = parsedComment.tags.find(t=>t.title == 'name')
-                            
-                            //console.log(JSON.stringify(parsedComment.tags, null, 4))
+                            if (!parsedComment.tags.find(t => t.title === 'doc')) 
+                                return;
+
+                            const params = parsedComment.tags.filter(t => ['doc', 'name', 'alias'].indexOf(t.title) == -1)
+                            const category = parsedComment.tags.find(t => t.title == 'alias')
+                            const name = parsedComment.tags.find(t => t.title == 'name')
                             
                             data.push({
                                 file: filePath,
-                                params: params.map(p=>({param: p.name || p.title, desc: p.description || '', type: p.type ? p.type.name : 'any'})),
+                                params: params.map(p => ({param: p.name || p.title, desc: p.description || '', type: p.type ? p.type.name : 'any'})),
                                 desc: parsedComment.description,
                                 category: category ? category.name : 'other',
                                 name: name ? name.name : 'unknown'
                             })
-                        }
+                        } catch (parseError) {
+                            console.warn(`Error parsing comment in ${filePath}:`, parseError.message);
+                        }                        
                     })
                 }
-            }
-        })
+            })
+        }
+        
+        scan(srcFolder)
+
+        const docTemplate = readFileSync(idxFolder+'doc/index.html', 'utf8')
+        const docHtml = docTemplate.replace('{data}', JSON.stringify(data))
+
+        writeFileSync(docFolder + 'data.json', JSON.stringify(data))
+        writeFileSync(docFolder + 'index.html', docHtml)
+        
+        console.log(`✅ Documentation built with ${data.length}/${scanned} entries`);
+        done()
+    } catch (error) {
+        console.error('❌ Error building documentation:', error.message);
+        done(error);
     }
-    
-    scan(srcFolder)
-
-    let doc = fs.readFileSync(idxFolder+'doc/index.html', 'utf8')
-
-    doc = doc.replace('{data}', JSON.stringify(data))
-
-    fs.writeFileSync(docFolder+'data.json', JSON.stringify(data))
-    fs.writeFileSync(docFolder+'index.html', doc)
-
-    done()
 }
 
-exports.pack_webos   = series(sync_webos, uglify_task, public_webos, index_webos);
-exports.pack_tizen   = series(sync_tizen, uglify_task, public_tizen, index_tizen);
-exports.pack_github  = series(merge, sync_github, uglify_task, public_github, write_manifest, index_github);
-exports.pack_web     = series(merge, plugins, sass_task, lang_task, sync_web, build_web);
-exports.pack_plugins = series(plugins);
-exports.test         = series(test);
-exports.default = parallel(watch, browser_sync);
-exports.debug = series(enable_debug_mode, this.default)
-exports.doc = series(sync_doc, buildDoc)
-exports.write_manifest = series(write_manifest)
+// create named task
+function run(name, fn) {
+    Object.defineProperty(fn, 'name', { value: name });
+    return fn;
+}
+
+function createPlatformBuild(platform) {
+    return series(
+        run(` - merge`, buildAppJs),
+        run(` - /public/ ⇒ ${platform}`, () => copyPublicFolder(platform)), 
+        run(` - uglify`, minifyAppJs), 
+        run(` - app.min.js ⇒ ${platform}`, () => copyAppMiniJs(platform)), 
+        run(` - /index/ ⇒ ${platform}`, () => copyIndexFolder(platform))
+    );
+}
+
+// debug
+export const debug          = parallel(enableDebugMode, watch_changes, browser_syncup);
+
+// build documentation
+export const doc            = series(copyDocFolder, buildDocumentation)
+
+// build packages
+export const build_plugins   = series(buildPluginStyles, buildPlugins);
+export const build_webos     = createPlatformBuild('webos'); //series(sync_webos, uglify_task, publicWebOs, indexWebOs);
+export const build_tizen     = createPlatformBuild('tizen'); //series(sync_tizen, uglify_task, publicTizen, indexTizen);
+export const build_github    = series(createPlatformBuild('github'), buildManifest); //series(merge, sync_github, uglify_task, publicGithub, buildManifest, indexGitHub);
+export const build_web       = series(buildAppJs, build_plugins, buildAppStyles, copyLanguages, run(' - /public/ ⇒ web', () => copyPublicFolder('web')), copyAppJsToWeb, copyPlugins);
+
+export default debug

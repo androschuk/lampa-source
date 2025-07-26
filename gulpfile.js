@@ -8,7 +8,7 @@ import * as dartSass from 'sass'
 import autoprefixer from 'gulp-autoprefixer';
 import fileinclude from 'gulp-file-include';
 import replace from 'gulp-replace';
-import { readFileSync, readdirSync, statSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, readdirSync, statSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import path from 'path'
 import worker from 'rollup-plugin-web-worker-loader';
 import { createHash } from 'crypto';
@@ -125,6 +125,32 @@ function buildPlugins() {
     });
 
     return Promise.all(tasks);
+}
+
+function cleanupPlugins(done) {
+    let count = 0;
+
+    function clean(dir) {
+        readdirSync(dir).forEach(item => {
+            const path = join(dir, item);
+            if (statSync(path).isDirectory()) {
+                clean(path);
+            } else if (item.endsWith('.css')) {
+                try { 
+                    console.info(` - ${path}`)
+                    unlinkSync(path); 
+                    count++; 
+                } catch (error) {
+                    handleError(error)
+                }
+            }
+        });
+    }
+    
+    clean(plgFolder);
+    console.log(`🗑️  Removed ${count} .css files`);
+
+    done();
 }
 
 function buildStyles({ inputGlob, outputDir, options = {} }) {
@@ -261,7 +287,6 @@ function watch_changes(done){
     // plugins
     watch('plugins/**/*.js', series(build_plugins, copyPlugins, reloadBrowser));
     watch('plugins/**/*.scss', series(build_plugins, copyPlugins, reloadBrowser));
-    
 
     done();
 }
@@ -389,7 +414,7 @@ export const debug          = parallel(enableDebugMode, watch_changes, browser_s
 export const doc            = series(copyDocFolder, buildDocumentation)
 
 // build packages
-export const build_plugins   = series(buildPluginStyles, buildPlugins);
+export const build_plugins   = series(buildPluginStyles, buildPlugins, cleanupPlugins);
 export const build_webos     = createPlatformBuild('webos'); //series(sync_webos, uglify_task, publicWebOs, indexWebOs);
 export const build_tizen     = createPlatformBuild('tizen'); //series(sync_tizen, uglify_task, publicTizen, indexTizen);
 export const build_github    = series(createPlatformBuild('github'), buildManifest); //series(merge, sync_github, uglify_task, publicGithub, buildManifest, indexGitHub);

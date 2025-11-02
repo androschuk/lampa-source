@@ -5,9 +5,6 @@ import Storage from '../../../core/storage/storage'
 import Lang from '../../../core/lang'
 
 export default {
-    onCreate: function(){
-        this.emit('groupButtons')
-    },
     onPriorityButton: function(btn){
         let cont = this.html.find('.full-start-new__buttons')
         let clon = btn.clone()
@@ -23,7 +20,7 @@ export default {
 
             this.last = this.html.find('.button--play')[0]
 
-            Controller.toggle('full_start')
+            Controller.toggle('content')
         })
 
         cont.prepend(clon)
@@ -83,7 +80,7 @@ export default {
                         this.emit('priorityButton', a.btn)
                     },
                     onBack: ()=>{
-                        Controller.toggle('full_start')
+                        Controller.toggle('content')
                     }
                 })
             }

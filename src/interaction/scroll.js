@@ -29,7 +29,6 @@ function Scroll(params = {}){
 
     let scroll_position        = 0
     let scroll_animating       = false
-    let scroll_animate_timer   = null
 
     let time_call_end = Date.now()
 
@@ -220,26 +219,27 @@ function Scroll(params = {}){
      */
     function startScroll(to_position){
         // Зачем начинать анимацию, если мы уже там?
-        if(scroll_position == to_position) return
+        if(scroll_position == to_position) {
+            if(!_self.isFilled()) scrollEnded()
+            
+            return
+        }
 
         scroll_position = to_position
 
         translateScroll()
 
         if(Storage.field('animation')){
-            clearTimeout(scroll_animate_timer)
-
             scroll_animating = true
 
             body.addEventListener('webkitTransitionEnd', () => {
+                if(Date.now() - time_call_end < 300) return
+
+                time_call_end = Date.now()
+
+                scroll_animating = false
+
                 requestAnimationFrame(() => {
-                    scroll_animating = false
-
-                    // Сразу несколько раз вызывается событие если быстро кликать, поэтому блокируем вызов
-                    if(Date.now() - time_call_end < 300) return
-
-                    time_call_end = Date.now()
-
                     scrollEnded()
 
                     if(_self.onAnimateEnd) _self.onAnimateEnd()

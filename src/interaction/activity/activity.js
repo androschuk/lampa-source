@@ -181,7 +181,7 @@ function init(){
     // Обновляем активность при уходе и возвращении на страницу
     document.addEventListener('visibilitychange', () => {
         // Если фокус не был на странице больше часа, то обновляем активность
-        if(Date.now() - focustime > (1000 * 60 * 60)) refresh(true)
+        if(Date.now() - focustime > (1000 * 60 * 60 * 6)) refresh(true)
         
         resetFocusTime()
     })
@@ -505,6 +505,8 @@ function last(){
         push(active)
     }
     else if(window.start_deep_link){
+        window.start_deep_link.page = 1
+        
         push(window.start_deep_link)
     }
     else if(active && start_from === "last"){

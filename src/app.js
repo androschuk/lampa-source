@@ -468,7 +468,7 @@ function developerApp(proceed){
  * Старт приложения
  */
 function startApp(){
-    if(window.appready) return
+    if(window.appready || window.app_time_launch) return
 
     window.app_time_launch = Date.now()
     window.app_time_end    = 0
@@ -482,49 +482,134 @@ function startApp(){
     // Инициализируем классы
 
     Timer.init()
-    Storage.init()
-    Timeline.init()
-    HTTPS.init()
-    Mirrors.init()
-    Personal.init()
-    Head.init()
-    Settings.init()
-    Select.init()
-    Favorite.init()
-    Background.init()
-    Markers.init()
-    Notice.init()
-    Bell.init()
-    Menu.init()
-    Activity.init()
-    Screensaver.init()
-    Socket.init()
-    Account.init()
-    Extensions.init()
-    Plugins.init()
-    Recomends.init()
-    TimeTable.init()
-    Helper.init()
-    Tizen.init()
-    Player.init()
-    Iframe.init()
-    Parser.init()
-    WebOSLauncher.init()
-    Theme.init()
-    AdManager.init()
-    NavigationBar.init()
-    Demo.init()
-    Speedtest.init()
-    Processing.init()
-    ParentalControl.init()
-    Android.init()
-    Sound.init()
-    Iptv.init()
-    Logs.init()
-    Broadcast.init()
-    Search.init()
-    DataBase.init()
+    LoadingProgress.status('Timer init')
 
+    Storage.init()
+    LoadingProgress.status('Storage init')
+
+    Timeline.init()
+    LoadingProgress.status('Timeline init')
+
+    HTTPS.init()
+    LoadingProgress.status('HTTPS init')
+
+    Mirrors.init()
+    LoadingProgress.status('Mirrors init')
+
+    Personal.init()
+    LoadingProgress.status('Personal init')
+
+    Head.init()
+    LoadingProgress.status('Head init')
+
+    Settings.init()
+    LoadingProgress.status('Settings init')
+
+    Select.init()
+    LoadingProgress.status('Select init')
+
+    Favorite.init()
+    LoadingProgress.status('Favorite init')
+
+    Background.init()
+    LoadingProgress.status('Background init')
+
+    Markers.init()
+    LoadingProgress.status('Markers init')
+
+    Notice.init()
+    LoadingProgress.status('Notice init')
+
+    Bell.init()
+    LoadingProgress.status('Bell init')
+
+    Menu.init()
+    LoadingProgress.status('Menu init')
+
+    Activity.init()
+    LoadingProgress.status('Activity init')
+
+    Screensaver.init()
+    LoadingProgress.status('Screensaver init')
+
+    Socket.init()
+    LoadingProgress.status('Socket init')
+
+    Account.init()
+    LoadingProgress.status('Account init')
+
+    Extensions.init()
+    LoadingProgress.status('Extensions init')
+
+    Plugins.init()
+    LoadingProgress.status('Plugins init')
+
+    Recomends.init()
+    LoadingProgress.status('Recomends init')
+
+    TimeTable.init()
+    LoadingProgress.status('Timetable init')
+
+    Helper.init()
+    LoadingProgress.status('Helper init')
+
+    Tizen.init()
+    LoadingProgress.status('Tizen init')
+
+    Player.init()
+    LoadingProgress.status('Player init')
+
+    Iframe.init()
+    LoadingProgress.status('Iframe init')
+
+    Parser.init()
+    LoadingProgress.status('Parser init')
+
+    WebOSLauncher.init()
+    LoadingProgress.status('WebOSLauncher init')
+
+    Theme.init()
+    LoadingProgress.status('Theme init')
+
+    AdManager.init()
+    LoadingProgress.status('AdManager init')
+
+    NavigationBar.init()
+    LoadingProgress.status('NavigationBar init')
+
+    Demo.init()
+    LoadingProgress.status('Demo init')
+
+    Speedtest.init()
+    LoadingProgress.status('Speedtest init')
+
+    Processing.init()
+    LoadingProgress.status('Processing init')
+
+    ParentalControl.init()
+    LoadingProgress.status('ParentalControl init')
+
+    Android.init()
+    LoadingProgress.status('Android init')
+
+    Sound.init()
+    LoadingProgress.status('Sound init')
+
+    Iptv.init()
+    LoadingProgress.status('Iptv init')
+
+    Logs.init()
+    LoadingProgress.status('Logs init')
+
+    Broadcast.init()
+    LoadingProgress.status('Broadcast init')
+
+    Search.init()
+    LoadingProgress.status('Search init')
+
+    DataBase.init()
+    LoadingProgress.status('DataBase init')
+    
     // Добавляем источники поиска
 
     if(window.lampa_settings.account_use && !window.lampa_settings.disable_features.ai) Search.addSource(Ai.discovery())
@@ -546,6 +631,9 @@ function startApp(){
     console.log('App','is PWA:', Utils.isPWA())
     console.log('App','platform:', Storage.get('platform', 'noname'))
     console.log('App','version:', Manifest.app_version)
+    console.log('App','build date:', '{__APP_BUILD__}')
+    console.log('App','hash', '{__APP_HASH__}')
+    console.log('App','location:', location.href)
 
     // Записываем uid
 
@@ -557,39 +645,47 @@ function startApp(){
 
     LoadingProgress.status('Render app')
 
-    // Скрытие логотипа
-
-    setTimeout(()=>{
-        LoadingProgress.destroy()
-
-        Keypad.enable()
-
-        Screensaver.enable()
-
-        $('.welcome').fadeOut(500,()=>{
-            $(this).remove()
-        })
-    },1000)
-
     // Инициализируем остальные сервисы
 
     ServiceDeveloper.init()
+    LoadingProgress.status('ServiceDeveloper init')
+
     ServiceTorserver.init()
+    LoadingProgress.status('ServiceTorserver init')
+
     ServiceWatched.init()
+    LoadingProgress.status('ServiceWatched init')
+
     ServiceSettings.init()
+    LoadingProgress.status('ServiceSettings init')
+
     ServiceMetric.init()
+    LoadingProgress.status('ServiceMetric init')
+
     ServiceRemoteFavorites.init()
+    LoadingProgress.status('ServiceRemoteFavorites init')
+
     ServiceDMCA.init()
+    LoadingProgress.status('ServiceDMCA init')
+
     ServiceFPS.init()
+    LoadingProgress.status('ServiceFPS init')
+
     ServiceEvents.init()
+    LoadingProgress.status('ServiceEvents init')
 
-    // Сообщаем о готовности
-
-    LoadingProgress.status('Send app ready')
+    ServiceLibs.init()
+    LoadingProgress.status('ServiceLibs init')
 
     // Обновляем слои
 
     Layer.update()
+
+    LoadingProgress.status('Layer update')
+
+    // Сообщаем о готовности
+
+    LoadingProgress.status('Send app ready')
 
     // Лампа полностью готова
 
@@ -601,9 +697,54 @@ function startApp(){
 }
 
 /**
+ * Показать приложение в любом случае
+ */
+function showApp(){
+    // Скрытие логотипа
+    setTimeout(()=>{
+        if(window.show_app) return
+
+        window.show_app = true
+
+        LoadingProgress.destroy()
+
+        Keypad.enable()
+
+        Screensaver.enable()
+
+        $('.welcome').fadeOut(500,()=>{
+            $(this).remove()
+        })
+    },1000)
+
+    // Старт приложения
+    startApp()
+}
+
+/**
  * Приоритетная загрузка
  */
 function loadTask(){
+    Task.queue((next)=>{
+        LoadingProgress.status('Open cache database')
+
+        Cache.openDatabase().then(()=>{
+            console.log('Cache', 'worked')
+
+            next()
+        }).catch(()=>{
+            console.log('Cache', 'error', 'no open database')
+
+            next()
+        })
+    })
+
+    Task.queue((next)=>{
+        LoadingProgress.status('Storage load reserve')
+        
+        Storage.task(next)
+    })
+
     Task.queue((next)=>{
         LoadingProgress.step(2)
 
@@ -629,15 +770,11 @@ function loadTask(){
     })
 
     Task.secondary(()=>{
-        ServiceLibs.init()
+        setTimeout(showApp, 5000)
     })
 
     Task.secondary(()=>{
-        setTimeout(startApp, 5000)
-    })
-
-    Task.secondary(()=>{
-        Plugins.load(startApp)
+        Plugins.load(showApp)
     })
 
     Task.start()

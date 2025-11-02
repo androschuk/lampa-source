@@ -343,9 +343,12 @@ params
 В компонентах где используется класс `Empty` нужно заменить строку:
 ```js
 // было
-this.start = Lampa.Empty.start
+let empty = new Lampa.Empty()
+this.start = empty.start
+
 // стало
-this.start = Lampa.Empty.start.bind(Lampa.Empty)
+let empty = new Lampa.Empty()
+this.start = empty.start.bind(empty)
 ```
 
 ### Lampa.Favorite
@@ -357,6 +360,23 @@ Lampa.Favorite.init()
 Lampa.Favorite.read()
 // для совместимости с предыдущими версиями можно оставить инициализацию
 Lampa.Favorite.init()
+```
+
+### Добавление источника в ответы API
+Отныне в ответы API нужно добавлять источник данных. Для этого используется метод `Utils.addSource(data, source)`, где `data` — ответ API, `source` — строковое значение источника, например, `tmdb`, `cub` и т.д.
+
+```js
+// было
+oncomplite(data)
+
+// стало
+oncomplite(Lampa.Utils.addSource(data, 'tmdb'))
+
+// или вручную для каждого элемента
+data.results.forEach((item)=>{
+    item.source = 'tmdb'
+})
+oncomplite(data)
 ```
 
 ... допешу позже что я еще исправлял :)

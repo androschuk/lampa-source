@@ -388,9 +388,18 @@ function putScriptAsync(items, complite, error, success, show_logs){
         
         if(l) console.log('Script','create:',u)
 
+        let t = setTimeout(()=>{
+            s.onerror()
+
+            s.onload  = null
+            s.onerror = null
+        }, 1000 * 60)
+
         let s = document.createElement('script')
             s.onload = ()=>{
                 if(l) console.log('Script','include:',u)
+
+                clearTimeout(t)
 
                 if(success) success(u)
 
@@ -398,6 +407,8 @@ function putScriptAsync(items, complite, error, success, show_logs){
             }
             s.onerror = ()=>{
                 if(l) console.warn('Script','error:',u)
+
+                clearTimeout(t)
 
                 if(error) error(u)
 
@@ -940,6 +951,29 @@ function randomMinMax(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min)
 }
 
+/**
+ * Добавляет источник к элементам данных
+ * @doc
+ * @name addSource
+ * @alias Utils
+ * @param {object|array} data данные или массив данных
+ * @param {string} source источник
+ */
+function addSource(data, source){
+    if(Arrays.isObject(data) && Arrays.isArray(data.results)){
+        data.results.forEach(item=>{
+            if(!item.source) item.source = source
+        })
+    }
+    else if(Arrays.isArray(data)){
+        data.forEach(item=>{
+            if(!item.source) item.source = source
+        })
+    }
+
+    return data
+}
+
 export default {
     secondsToTime,
     secondsToTimeHuman,
@@ -998,5 +1032,6 @@ export default {
     qrcode,
     onceInit,
     containsJapanese,
-    randomMinMax
+    randomMinMax,
+    addSource
 }

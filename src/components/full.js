@@ -113,6 +113,13 @@ function component(object){
                     results: data.discuss.result || []
                 }])
 
+                // Создаем коллекцию
+                if(data.collection && data.collection.results && data.collection.results.length){
+                    data.collection.title  = Lang.translate('title_collection')
+
+                    this.rows.push(['cards', data.collection])
+                }
+
                 // Создаем рекомендации
                 if(data.recomend && data.recomend.results && data.recomend.results.length){
                     data.recomend.title   = Lang.translate('title_recomendations')
@@ -153,6 +160,13 @@ function component(object){
                     object,
                     data
                 })
+
+                this.activity.loader(false)
+
+                // Группируем кнопки после полной загрузки
+                if(this.items.length) this.items[0].emit('groupButtons')
+
+                this.activity.toggle()
 
             }, this.emit.bind(this, 'error'))
         },
@@ -219,6 +233,11 @@ function component(object){
             this.empty(status)
         }
     })
+
+    // Переопределяем билд
+    comp.build = function(data){
+        this.emit('build', data)
+    }
 
     return comp
 }

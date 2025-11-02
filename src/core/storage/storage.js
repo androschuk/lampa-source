@@ -18,17 +18,30 @@ function init(){
     sync('online_last_balanser','object_string')
     sync('user_clarifys','object_object')
     sync('torrents_filter_data','object_object')
+}
 
+/**
+ * Загрузка кеша из IndexedDB
+ * @doc
+ * @name task
+ * @alias Storage
+ * @param {function} next функция обратного вызова
+ */
+function task(next){
     Cache.getData('storage').then((result)=>{
         if(result){
             console.log('Storage', 'load cache:', result.length)
 
             result.forEach(data=>{
-                reserve[data.key] = data[data.value]
+                reserve[data.key] = data.value
             })
         }
+
+        next()
     }).catch((e)=>{
         console.log('Storage', 'cache error:', e.message, e.stack, e)
+
+        next()
     })
 }
 
@@ -51,8 +64,6 @@ function get(name, empty){
         value = item
 
         if(item == null && reserve[name]){
-            console.log('Storage', 'get from cache:', name, reserve[name])
-
             value = reserve[name]
         }
     }
@@ -332,5 +343,6 @@ export default {
     remove,
     clear,
     clean,
-    getsize
+    getsize,
+    task
 }

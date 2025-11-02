@@ -16,6 +16,7 @@ import Permit from '../../account/permit'
 
 let network = new Reguest()
 let day     = 60 * 24
+let source  = 'cub'
 
 function url(u, params = {}){
     if(params.genres && u.indexOf('genre') == -1)  u = add(u, 'genre='+params.genres)
@@ -42,8 +43,9 @@ function get(method, params = {}, oncomplite, onerror, cache = false){
     
     network.silent(u,(json)=>{
         json.url = method
+        json.source = source
 
-        oncomplite(json)
+        oncomplite(Utils.addSource(json, source))
     }, onerror, false, {
         cache: cache
     })
@@ -52,7 +54,9 @@ function get(method, params = {}, oncomplite, onerror, cache = false){
 function list(params = {}, oncomplite, onerror){
     let u = url(params.url, params)
 
-    network.silent(u, oncomplite, onerror, false, {
+    network.silent(u, (data)=>{
+        oncomplite(Utils.addSource(data, source))
+    }, onerror, false, {
         cache: {life: day * 2}
     })
 }
@@ -398,7 +402,7 @@ function full(params, oncomplite, onerror){
     get('3/'+params.method+'/'+params.id+'?api_key='+TMDBApi.key()+'&append_to_response=content_ratings,release_dates,keywords,alternative_titles&language='+Storage.field('tmdb_lang'),params,(json)=>{
         if(json.status_code) return status.stop(),onerror()
 
-        json.source = 'tmdb'
+        json.source = 'cub'
 
         if(params.method == 'tv'){
             let season = Utils.countSeasons(json)
@@ -413,7 +417,7 @@ function full(params, oncomplite, onerror){
             TMDB.get('collection/'+json.belongs_to_collection.id,{},(collection)=>{
                 collection.results = collection.parts.slice(0,19)
 
-                status.append('collection', collection)
+                status.append('collection', Utils.addSource(collection, 'tmdb'))
             },status.error.bind(status), {life: day * 7})
         }
         else status.need--
@@ -466,7 +470,7 @@ function trailers(type, oncomplite){
             }
         })
 
-        oncomplite(result)
+        oncomplite(Utils.addSource(result, source))
     },()=>{
         oncomplite({results: []})
     }, false, {cache:  {life: day * 2}})

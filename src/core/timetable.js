@@ -70,7 +70,7 @@ function init(){
     loadEpisodes()
 
     ContentRows.add({
-        index: 0,
+        index: 1,
         screen: ['main', 'category'],
         call: (params, screen)=>{
             if(screen == 'category' && params.url == 'movie') return
@@ -200,7 +200,7 @@ function parse(to_database){
             console.log('Timetable', 'parse:', object.id, 'old season:', object.season)
 
             TMDB.get('tv/'+object.id, {}, (json)=>{
-                object.season = Utils.countSeasons(json)
+                object.season = Utils.countSeasons(json) || 1
                 object.ssn    = Date.now()
 
                 parse(to_database)
@@ -384,12 +384,15 @@ function lately(){
         let episode = season.episodes.length ? getNextEpisode(season.episodes) : season.next
         
         if(episode){
-            cards.push({
-                card: Arrays.clone(fav.find(c=>c.id == season.id)),
-                episode: episode,
-                time: Lampa.Utils.parseToDate(episode.air_date).getTime(),
-                season
-            })
+            // Проверка season.next на актуальность
+            if(Lampa.Utils.parseToDate(episode.air_date).getTime() >= Date.now()){
+                cards.push({
+                    card: Arrays.clone(fav.find(c=>c.id == season.id)),
+                    episode: episode,
+                    time: Lampa.Utils.parseToDate(episode.air_date).getTime(),
+                    season
+                })
+            }
         }
     })
 

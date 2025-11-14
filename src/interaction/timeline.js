@@ -21,10 +21,12 @@ function init(){
  * Прочитать прогресс просмотра из localStorage
  * @returns {void}
  */
-function read(){
+function read(no_nolisten = false){
     viewed = Storage.get(filename(), {})
 
     listener.send('read', {data: viewed})
+
+    if(no_nolisten) return
 
     Lampa.Listener.send('state:changed', {
         target: 'timeline',
@@ -76,7 +78,10 @@ function update(params){
 
     Storage.set(filename(), viewed)
 
-    Activity.renderLayers().forEach((layer)=>{
+    let layers = [].concat(Activity.renderLayers())
+        layers.push($(document))
+
+    layers.forEach((layer)=>{
         let line = $('.time-line[data-hash="'+params.hash+'"]', layer).toggleClass('hide', params.percent ? false : true)
 
         $('> div', line).css({

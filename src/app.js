@@ -700,6 +700,8 @@ function startApp(){
  * Показать приложение в любом случае
  */
 function showApp(){
+    LoadingProgress.status('Show app')
+    
     // Скрытие логотипа
     setTimeout(()=>{
         if(window.show_app) return
@@ -746,24 +748,32 @@ function loadTask(){
     })
 
     Task.queue((next)=>{
+        LoadingProgress.status('Mirrors initialization')
+
         LoadingProgress.step(2)
 
         Mirrors.task(next)
     })
 
     Task.queue((next)=>{
+        LoadingProgress.status('Plugins initialization')
+
         LoadingProgress.step(3)
 
         Plugins.task(next)
     })
 
     Task.queue((next)=>{
+        LoadingProgress.status('Proxy initialization')
+
         LoadingProgress.step(4)
 
         VPN.task(next)
     })
 
     Task.queue((next)=>{
+        LoadingProgress.status('Account initialization')
+
         LoadingProgress.step(5)
 
         Account.task(next)
@@ -774,6 +784,8 @@ function loadTask(){
     })
 
     Task.secondary(()=>{
+        LoadingProgress.status('Loading plugins')
+
         Plugins.load(showApp)
     })
 
@@ -793,7 +805,7 @@ function loadLang(){
         LoadingProgress.status('Loading language')
 
         $.ajax({
-            url: (location.protocol == 'file:' || Platform.desktop() ? (window.lampa_settings.fix_widget ? Manifest.cdn_url : Manifest.github_lampa) : './') + 'lang/' + code + '.js',
+            url: (location.protocol == 'file:' || Platform.desktop() ? Manifest.github_lampa : './') + 'lang/' + code + '.js',
             dataType: 'text',
             timeout: 10000,
             success: (data)=>{

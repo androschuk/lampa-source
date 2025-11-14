@@ -1243,4 +1243,14 @@ export default {
     player_segments_skiped: 'Сегментът е пропуснат',
     subscribe_info: 'В раздела „Абонаменти“ ще видите всички ваши абонаменти за преводи. Ще получите известие, когато излезе нов епизод с избрания от вас превод.',
     no_watch_history: 'Няма история на сърфиране',
+
+    settings_request_caching_use: 'Кеширане на заявки',
+    settings_request_caching_descr: 'Кеширане на резултатите от заявките за по-бърз достъп при повторни заявки',
+
+    account_profile_child: 'Дете',
+    account_profile_add: 'Добавяне на профил',
+    account_profile_name: 'Име на профил',
+    account_profile_created: 'Профилът е създаден успешно',
+    account_profile_limited: 'Достигнат е максималният брой профили: {count}',
+    account_profile_info: 'Можете да управлявате профилите в настройките на профила си. За да направите това, отидете на <span class="account-modal__site">{site}/profiles</span>',
 }

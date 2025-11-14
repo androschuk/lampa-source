@@ -11,6 +11,8 @@ import CardModule from '../../../interaction/card/module/module'
 import ContentRows from '../../content_rows'
 import Template from '../../../interaction/template'
 import LineModule from '../../../interaction/items/line/module/module'
+import Router from '../../router'
+import Permit from '../../account/permit'
 
 
 let network   = new Reguest()
@@ -68,8 +70,7 @@ function url(u, params = {}){
     u = add(u, 'api_key='+TMDB.key())
     u = add(u, 'language='+ln.join(','))
 
-    // Оставлю на потом для детского профиля
-    //if(!params.networks) u = add(u, 'certification_country=RU&certification.lte=18')
+    if(Permit.token && Permit.account.profile && Permit.account.profile.child) u = add(u, 'certification_country=RU&certification.lte=18')
 
     if(params.genres && u.indexOf('with_genres') == -1)  u = add(u, 'with_genres='+params.genres)
     if(params.page)    u = add(u, 'page='+params.page)
@@ -526,12 +527,7 @@ function search(params = {}, oncomplite){
 
         json.results.forEach(person=>{
             person.params = {
-                module: CardModule.only('Card', 'Release', 'Callback'),
-                emit: {
-                    onlyEnter: ()=>{
-                        console.log('Person card focused:', person);
-                    }
-                }
+                module: CardModule.only('Card', 'Release', 'Callback')
             }
         })
 
@@ -545,6 +541,22 @@ function discovery(){
         search: search,
         params: {
             save: true
+        },
+        onRecall: (rows, last_query)=>{
+            rows.forEach((row) => {
+                if(row.type == 'person'){
+                    row.results.forEach((element) => {
+                        element.params = {
+                            module: CardModule.only('Card', 'Release', 'Callback')
+                        }
+                    })
+                }
+            })
+        },
+        onSelect: (params, close)=>{
+            close()
+            
+            Router.call(params.element.gender ? 'actor' : 'full', params.element)
         },
         onMore: (params, close)=>{
             close()

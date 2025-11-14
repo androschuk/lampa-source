@@ -363,6 +363,8 @@ function putScript(items, complite, error, success, show_logs){
                 next()
             }
 
+            s.async = true
+
             s.setAttribute('src', u)
         
             document.body.appendChild(s)
@@ -414,6 +416,8 @@ function putScriptAsync(items, complite, error, success, show_logs){
 
                 check()
             }
+
+            s.async = true
 
             s.setAttribute('src', u)
         
@@ -974,6 +978,10 @@ function addSource(data, source){
     return data
 }
 
+function clearHtmlTags(str){
+    return str.replace(/<\/?[^>]+(>|$)/g, "")
+}
+
 export default {
     secondsToTime,
     secondsToTimeHuman,
@@ -1033,5 +1041,6 @@ export default {
     onceInit,
     containsJapanese,
     randomMinMax,
-    addSource
+    addSource,
+    clearHtmlTags
 }

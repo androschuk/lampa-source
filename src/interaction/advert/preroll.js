@@ -89,6 +89,8 @@ function launch(preroll, call){
             video(preroll, 1, ()=>{}, ()=>{
                 html.remove()
 
+                Background.theme('reset')
+
                 Controller.toggle(enabled)
 
                 call()
@@ -107,7 +109,7 @@ function launch(preroll, call){
     Controller.toggle('ad_preroll')
 }
 
-function getVastPlugin(data){
+function getVastPlugin(data, first_run = false){
     let show = true
 
     if(data.vast_region && typeof data.vast_region == 'string' && data.vast_region.split(',').indexOf(data.ad_region) == -1) show = false
@@ -123,9 +125,9 @@ function getVastPlugin(data){
     return false
 }
 
-function getAnyPreroll(){
-    let manager = Manager.get(player_data)
-    let plugin  = getVastPlugin(player_data)
+function getAnyPreroll(first_run = false){
+    let manager = Manager.get(player_data, first_run)
+    let plugin  = getVastPlugin(player_data, first_run)
 
     if(waite_time < Date.now() - 1000 * 60 * 5) return manager || plugin
 
@@ -158,7 +160,7 @@ function show(data, call){
     player_data = data
     player_data.ad_region = VPN.code()
 
-    let preroll = getAnyPreroll()
+    let preroll = getAnyPreroll(true)
 
     console.log('Ad', 'any preroll', preroll)
 

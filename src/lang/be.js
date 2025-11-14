@@ -1258,4 +1258,13 @@ export default {
     subscribe_info: 'У раздзеле «Падпіскі» вы ўбачыце ўсе свае падпіскі на пераклады. Вы атрымаеце апавяшчэнне, калі выйдзе новая серыя з выбраным перакладам.',
     no_watch_history: 'Няма гісторыі прагляду',
 
+    settings_request_caching_use: 'Кэшаванне запытаў',
+    settings_request_caching_descr: 'Захоўваць вынікі запытаў для паскарэння працы прыкладання',
+
+    account_profile_child: 'Дзіцячы', 
+    account_profile_add: 'Дадаць профіль', 
+    account_profile_name: 'Імя профілю', 
+    account_profile_created: 'Профіль паспяхова створаны', 
+    account_profile_limited: 'Дасягнуты максімальны ліміт профіляў: {count}', 
+    account_profile_info: 'Вы можаце кіраваць профілямі ў наладах акаўнта, для гэтага перайдзіце на сайт <span class="account-modal__site">{site}/profiles</span>',
 }

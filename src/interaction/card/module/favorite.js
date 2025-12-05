@@ -50,22 +50,24 @@ export default {
                 })
             })
             
-            menu.push({
-                title: Lang.translate('settings_cub_status'),
-                separator: true
-            })
-    
-            items_mark.forEach(m=>{
+            if( window.lampa_settings.account_use){
                 menu.push({
-                    title: Lang.translate('title_'+m),
-                    where: m,
-                    picked: Account.hasPremium() ? status[m] : false,
-                    collect: true,
-                    noenter: !Account.hasPremium(),
-                    onSelect,
-                    onDraw
+                    title: Lang.translate('settings_cub_status'),
+                    separator: true
                 })
-            })
+
+                items_mark.forEach(m=>{
+                    menu.push({
+                        title: Lang.translate('title_'+m),
+                        where: m,
+                        picked: Account.hasPremium() ? status[m] : false,
+                        collect: true,
+                        noenter: !Account.hasPremium(),
+                        onSelect,
+                        onDraw
+                    })
+                })
+            }
 
             return menu
         }

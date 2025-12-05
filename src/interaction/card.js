@@ -382,24 +382,27 @@ function Card(data, params = {}){
                 where: 'history',
                 checkbox: true,
                 checked: status.history
-            },
-            {
-                title: Lang.translate('settings_cub_status'),
-                separator: true
             }
         ]
 
-        let marks = ['look', 'viewed', 'scheduled', 'continued', 'thrown']
+        if( window.lampa_settings.account_use){
+            let marks = ['look', 'viewed', 'scheduled', 'continued', 'thrown']
 
-        marks.forEach(m=>{
             menu_favorite.push({
-                title: Lang.translate('title_'+m),
-                where: m,
-                picked: status[m],
-                collect: true,
-                noenter: !Account.hasPremium()
+                title: Lang.translate('settings_cub_status'),
+                separator: true
             })
-        })
+
+            marks.forEach(m=>{
+                menu_favorite.push({
+                    title: Lang.translate('title_'+m),
+                    where: m,
+                    picked: status[m],
+                    collect: true,
+                    noenter: !Account.hasPremium()
+                })
+            })
+        }
 
         
         Manifest.plugins.forEach(plugin=>{

@@ -361,6 +361,10 @@
 }
 
 .shots-lenta-panel{
+    .explorer-card__head{
+        margin-bottom: 2em;
+    }
+    
     &__card{
         $self: &;
 
@@ -518,46 +522,102 @@
     }
 }
 
-.full-episode--shot{
-    .full-episode__body{
-        background: linear-gradient(0deg,rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 40%);
-    }
+.shots-status{
+    background: rgba(0, 0, 0, 0.5);
+    padding: 0.3em 0.8em;
+    -webkit-border-radius: 1em;
+    -moz-border-radius: 1em;
+    border-radius: 0.6em;
+    display: inline-block;
+    font-size: 0.9em;
+    line-height: 1.4;
+    padding-top: 0em;
 
+    &--ready{
+        background: #8ab75b;
+    }
+    &--error{
+        background: #d9534f;
+    }
+    &--processing{
+        background: #f0ad4e;
+    }
+    &--blocked{
+        background: #5b7c9c;
+    }
+    &--deleted{
+        background: #d04545;
+    }
+}
+
+.full-episode--shot{
     .shots-tags > div{
         background: rgba(0, 0, 0, 0.5);
     }
 
-    .full-episode__date{
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    .full-episode{
+        &__body{
+            background: linear-gradient(0deg,rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 40%);
+        }
+
+        &__date{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        &__liked{
+            display: flex;
+            align-items: center;
+
+            svg{
+                width: 1em !important;
+                height: 1em !important;
+                margin-right: 0.3em;
+            }
+        }
+
+        &__shot-icon{
+            position: absolute;
+            top: 1em;
+            left: 1em;
+            
+            svg{
+                width: 2em !important;
+                height: 2em !important;
+            }
+        }
+    }
+
+    .shots-status{
+        margin-top: 0.7em;
     }
 }
 
-body.platform--browser,
-body.platform--nw,
-body.glass--style.platform--apple,
-body.glass--style.platform--apple_tv,
-body.glass--style.platform--android{
-    .shots-player-recorder__plate{
-        background-color: rgba(0,0,0,0.3);
-        backdrop-filter: blur(1em);
-    }
-}
+// body.platform--browser,
+// body.platform--nw,
+// body.glass--style.platform--apple,
+// body.glass--style.platform--apple_tv,
+// body.glass--style.platform--android{
+//     .shots-player-recorder__plate{
+//         background-color: rgba(0,0,0,0.3);
+//         backdrop-filter: blur(1em);
+//     }
+// }
 
-body.glass--style{
-    &-opacity{
-        &--medium{
-            .shots-player-recorder__plate{
-                background-color: rgba(20,20,20,0.6);
-                backdrop-filter: blur(1.1em);
-            }
-        }
-        &--blacked{
-            .shots-player-recorder__plate{
-                background-color: rgba(20,20,20,0.9);
-                backdrop-filter: blur(0.5em);
-            }
-        }
-    }
-}
+// body.glass--style{
+//     &-opacity{
+//         &--medium{
+//             .shots-player-recorder__plate{
+//                 background-color: rgba(20,20,20,0.6);
+//                 backdrop-filter: blur(1.1em);
+//             }
+//         }
+//         &--blacked{
+//             .shots-player-recorder__plate{
+//                 background-color: rgba(20,20,20,0.9);
+//                 backdrop-filter: blur(0.5em);
+//             }
+//         }
+//     }
+// }

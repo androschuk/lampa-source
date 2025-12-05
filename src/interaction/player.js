@@ -62,8 +62,18 @@ function init(){
     html.append(Info.render())
     html.append(Footer.render())
 
+    let timer_hide_cursor
+
     html.on('mousemove',()=>{
         if(Storage.field('navigation_type') == 'mouse' && !Utils.isTouchDevice()) Panel.mousemove()
+
+        html.css('cursor','auto')
+
+        clearTimeout(timer_hide_cursor)
+
+        timer_hide_cursor = setTimeout(()=>{
+            html.css('cursor','none')
+        },3000)
     })
 
     if(!window.localStorage.getItem('player_torrent')) Storage.set('player_torrent', Storage.field('player'))
@@ -759,11 +769,12 @@ function start(data, need, inner){
         else inner()
     }
     else if(Platform.is('apple_tv')){
+        let apple_tv_client = Storage.field('apple_tv_client') ?? 'lampa';
         let external_url = externalPlayer(player_need, data, {
             vlc:        'vlc-x-callback://x-callback-url/stream?url=${url}',
-            infuse:     'infuse://x-callback-url/play?x-success=lampa://infuseDidFinish&x-error=lampa://infuseDidFail&url=${url}&playlist=${playlist}',
+            infuse:     `infuse://x-callback-url/play?x-success=${apple_tv_client}://infuseDidFinish&x-error=${apple_tv_client}://infuseDidFail&url=\${url}&playlist=\${playlist}`,
             senplayer:  'SenPlayer://x-callback-url/play?url=${url}',
-            vidhub:     'open-vidhub://x-callback-url/open?&url=${url}',
+            vidhub:     'open-vidhub://x-callback-url/open?url=${url}',
             svplayer:   'svplayer://x-callback-url/stream?url=${url}',
             tracyplayer:'tracy://open?url=${url}',
             tvos:       'lampa://video?player=tvos&src=${url}&playlist=${playlist}',

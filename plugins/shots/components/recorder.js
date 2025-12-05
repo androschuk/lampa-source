@@ -10,14 +10,15 @@ function Recorder(video){
         try{
             let stream  = video.captureStream()
             let options = { 
-                mimeType: 'video/webm;codecs=vp9',
-                videoBitsPerSecond: 1000000,
-                audioBitsPerSecond: 128000 
+                mimeType: 'video/webm;codecs=h264',
+                videoBitsPerSecond: 6000000,
+                audioBitsPerSecond: 128000
             }
 
             this.recorder = new MediaRecorder(stream, options)
 
             let chunks = []
+            let start_point = Math.round(video.currentTime)
 
             this.recorder.ondataavailable = e => chunks.push(e.data)
             this.recorder.onstop = () => {
@@ -28,7 +29,9 @@ function Recorder(video){
                 this.onStop({
                     duration: (Date.now() - this.start_time) / 1000,
                     blob: blob,
-                    screenshot: this.screenshot
+                    screenshot: this.screenshot,
+                    start_point,
+                    end_point: Math.round(video.currentTime)
                 })
             }
 
@@ -39,6 +42,8 @@ function Recorder(video){
             this.recorder.start()
         }
         catch(e){
+            console.error('Recorder', e.message)
+
             this.error(e)
         }
     }

@@ -45,8 +45,11 @@ function publish(callback){
     confirm('', ()=>{
         let file
 
+        // Удаляем из бэкапа app.js
+        let serialized = JSON.stringify(localStorage, (key, value) => key === 'app.js' ? undefined : value)
+
         try{
-            file = new File([JSON.stringify(localStorage)], "backup.json", {
+            file = new File([serialized], "backup.json", {
                 type: "text/plain",
             })
         }
@@ -56,7 +59,7 @@ function publish(callback){
 
         if(!file){
             try{
-                file = new Blob([JSON.stringify(localStorage)], {type: 'text/plain'})
+                file = new Blob([serialized], {type: 'text/plain'})
                 file.lastModifiedDate = new Date()
             }
             catch(e){

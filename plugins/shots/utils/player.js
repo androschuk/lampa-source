@@ -1,5 +1,6 @@
 import Recorder from '../components/recorder.js'
 import Upload from '../components/upload.js'
+import Defined from '../defined.js'
 
 let button_record = null
 let play_data     = {}
@@ -13,31 +14,26 @@ function init(){
 
     button_record.on('hover:enter', beforeRecording)
 
+    button_record.addClass('hide')
+
     Lampa.PlayerPanel.render().find('.player-panel__settings').after(button_record)
 }
 
 function startPlayer(data){
     play_data = {}
 
-    data.card = {
-        id: 76640,
-        title: 'Возвращение героя',
-        release_date: '2013-01-12',
-        poster_path: '/3b18bwznHHXNcJd46IvBPbZjQWL.jpg'
-    }
-
-    if(!data.iptv){
+    if(!data.iptv && Lampa.Storage.field('player') == 'inner'){
         if(data.card) play_data.card = data.card
         else if(Lampa.Activity.active().movie){
             play_data.card = Lampa.Activity.active().movie
         }
 
-        play_data.season     = data.season || 1
-        play_data.episode    = data.episode || 1
-        play_data.voice_name = data.voice_name || 'unknown'
-    }
+        play_data.season     = data.season || 0
+        play_data.episode    = data.episode || 0
+        play_data.voice_name = (data.voice_name || '').split(' ')[0].trim()
 
-    button_record.removeClass('hide')
+        if(play_data.card) button_record.removeClass('hide')
+    }
 }
 
 function stopPlayer(){
@@ -66,6 +62,25 @@ function closeModal(){
 
 function beforeRecording(){
     pausePlayer()
+
+    // if(Date.now() - Lampa.Storage.get('shots_last_record', '0') < Defined.quota_next_record){
+    //     return Lampa.Modal.open({
+    //         html: Lampa.Template.get('shots_modal_quota_limit', {
+    //             time: 0
+    //         }),
+    //         size: 'small',
+    //         scroll: {
+    //             nopadding: true
+    //         },
+    //         buttons: [
+    //             {
+    //                 name: Lampa.Lang.translate('shots_button_good'),
+    //                 onSelect: closeModal
+    //             }
+    //         ],
+    //         onBack: closeModal
+    //     })
+    // }
 
     Lampa.Modal.open({
         html: Lampa.Template.get('shots_modal_before_recording'),
@@ -108,7 +123,20 @@ function startRecording(){
 }
 
 function errorRecording(e){
-    
+    Lampa.Modal.open({
+        html: Lampa.Template.get('shots_modal_error_recording'),
+        size: 'small',
+        scroll: {
+            nopadding: true
+        },
+        buttons: [
+            {
+                name: Lampa.Lang.translate('shots_button_good'),
+                onSelect: closeModal
+            }
+        ],
+        onBack: closeModal
+    })
 }
 
 function stopRecording(recording){
@@ -146,7 +174,7 @@ function shortRecording(){
         },
         buttons: [
             {
-                name: Lampa.Lang.translate('Хорошо'),
+                name: Lampa.Lang.translate('shots_button_good'),
                 onSelect: closeModal
             }
         ],

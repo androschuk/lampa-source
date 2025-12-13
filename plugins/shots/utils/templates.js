@@ -88,7 +88,7 @@ function init(){
         <div class="shots-player-recorder">
             <div class="shots-player-recorder__body">
                 <div class="shots-player-recorder__plate">
-                    <div class="shots-player-recorder__text">Идет запись <span></span></div>
+                    <div class="shots-player-recorder__text">#{shots_recording_text} <span></span></div>
                     <div class="shots-player-recorder__stop"></div>
                 </div>
             </div>
@@ -98,6 +98,9 @@ function init(){
     Lampa.Template.add('shots_modal_upload', `
         <div class="shots-modal-upload">
             <div class="shots-modal-upload__preview"></div>
+            <div class="shots-modal-upload__video">
+                <video muted controls="true" poster="./img/video_poster.png"></video>
+            </div>
             <div class="shots-modal-upload__body"></div>
         </div>
     `)
@@ -159,7 +162,7 @@ function init(){
             <div class="shots-lenta-video__progress-bar">
                 <div></div>
             </div>
-            <div class="shots-lenta-video__layer selector"></div>
+            <div class="shots-lenta-video__layer"></div>
         </div>
     `)
 
@@ -172,14 +175,11 @@ function init(){
                     </div>
                 </div>
                 <div class="explorer-card__head-body">
-                    <div class="explorer-card__head-create shots-lenta-panel__card-year">2020</div>
-                    <div class="shots-lenta-panel__card-title">Я всемогуший сирунчик!</div>
+                    <div class="explorer-card__head-create shots-lenta-panel__card-year"></div>
+                    <div class="shots-lenta-panel__card-title"></div>
+                    <div class="shots-lenta-panel__tags"></div>
                 </div>
             </div>
-
-            <div class="shots-lenta-panel__tags"></div>
-
-            <div class="shots-lenta-panel__counters"></div>
 
             <div class="shots-lenta-panel__author"></div>
 

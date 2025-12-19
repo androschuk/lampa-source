@@ -2,4 +2,5 @@ build/**/*
 node_modules/
 .DS_Store
 .idea
-public/css/app.css 
+public/css/app.css
+plugins/**/style.css

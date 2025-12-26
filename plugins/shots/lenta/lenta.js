@@ -129,8 +129,32 @@ function Lenta(first, playlist){
         this.html.toggleClass('shots-lenta--hide-panel', false)
 
         this.focus_timeout = setTimeout(()=>{
+            if(Lampa.Controller.enabled().name !== 'shots_lenta') return
+
             this.html.toggleClass('shots-lenta--hide-panel', true)
-        },5000)
+
+            Lampa.Controller.add('shots_lenta_idle',{
+                toggle: ()=>{
+                    Lampa.Controller.clear()
+                },
+                left: this.controller.bind(this),
+                right: this.controller.bind(this),
+                up: ()=>{
+                    this.move('prev')
+
+                    this.focus()
+                },
+                down: ()=>{
+                    this.move('next')
+
+                    this.focus()
+                },
+                enter: this.controller.bind(this),
+                back: this.controller.bind(this)
+            })
+
+            Lampa.Controller.toggle('shots_lenta_idle')
+        },7000)
     }
 
     this.controller = function(){
@@ -223,6 +247,8 @@ function Lenta(first, playlist){
 
     this.destroy = function(){
         console.log('Lenta destroy')
+
+        clearTimeout(this.focus_timeout)
 
         this.video.destroy()
         this.panel.destroy()

@@ -63,6 +63,7 @@ function appendRow(element){
     row.use({
         onCreate(){
             this.html.append(element)
+            this.html.addClass('player-footer__row')
         },
         onToggle(){
             Controller.add('player_footer_element',{
@@ -140,8 +141,18 @@ function appendClass(classElement){
 function appendAbout(card){
     let card_html = Template.js('player_footer_card')
 
+    let tags    = []
+    let relise  = (card.release_date || card.first_air_date || '') + ''
+    let year    = relise ? relise.slice(0,4) : ''
+
+    if(year) tags.push(year)
+
+    if(card.genres && Arrays.isArray(card.genres)){
+        tags.push(card.genres.map(a=>Utils.capitalizeFirstLetter(a.name)).join(', '))
+    }
+
     card_html.find('.player-footer-card__title').text(card.name || card.title)
-    card_html.find('.player-footer-card__tags').text(card.genres && Arrays.isArray(card.genres) ?card.genres.map(a=>Utils.capitalizeFirstLetter(a.name)).join(', ') : '---')
+    card_html.find('.player-footer-card__tags').text(tags.length ? tags.join(' - ') : '---')
 
     let text = card_html.find('.player-footer-card__text')
 

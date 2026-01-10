@@ -407,6 +407,42 @@ function init(){
             zh: '观看片段',
             pt: 'Assistir trechos',
             bg: 'Гледайте нарязки'
+        },
+        shots_down: {
+            ru: 'Нажми вниз',
+            en: 'Press down',
+            uk: 'Натисни вниз',
+            be: 'Націсні ўніз',
+            zh: '按下',
+            pt: 'Pressione para baixo',
+            bg: 'Натисни надолу'
+        },
+        shots_how_create_video_title: {
+            ru: 'Как создать видео',
+            en: 'How to create a video',
+            uk: 'Як створити відео',
+            be: 'Як стварыць відэа',
+            zh: '如何创建视频',
+            pt: 'Como criar um vídeo',
+            bg: 'Как да създадете видео'
+        },
+        shots_how_create_video_subtitle: {
+            ru: 'Посмотреть инструкцию по созданию видео',
+            en: 'View instructions for creating a video',
+            uk: 'Переглянути інструкцію зі створення відео',
+            be: 'Паглядзець інструкцыю па стварэнні відэа',
+            zh: '查看创建视频的说明',
+            pt: 'Ver instruções para criar um vídeo',
+            bg: 'Вижте инструкциите за създаване на видео'
+        },
+        shots_card_empty_descr: {
+            ru: 'Здесь пока нет шотов, но вы можете создать первый!',
+            en: 'There are no shots here yet, but you can create the first one!',
+            uk: 'Тут поки немає шотів, але ви можете створити перший!',
+            be: 'Тут пакуль няма шотаў, але вы можаце стварыць першы!',
+            zh: '这里还没有镜头，但您可以创建第一个！',
+            pt: 'Ainda não há trechos aqui, mas você pode criar o primeiro!',
+            bg: 'Тук все още няма нарязки, но можете да създадете първия!'
         }
     })
 }

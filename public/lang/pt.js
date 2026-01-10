@@ -73,6 +73,7 @@ export default {
 
     settings_interface_type: 'Versão Lite',
     settings_interface_size: 'Tamanho interface',
+	settings_interface_menu_always: 'Always show the left menu',
     settings_interface_background: 'Fundo',
     settings_interface_background_use: 'Mostar fundo',
     settings_interface_background_type: 'Tipo de fundo',
@@ -1041,7 +1042,10 @@ export default {
     speedtest_button: 'Testar velocidade',
     settings_rest_protocol_use: 'Conexão segura',
     settings_rest_protocol_descr: 'Usar protocolo HTTPS',
-    install_app_apk_text: 'Percebemos que você está usando o MediaStationX para executar o Lampa no Android. Recomendamos que você instale o Lampa como um aplicativo APK. Você pode baixar a versão mais recente do aplicativo aqui:',
+    install_app_apk_title: 'Como instalar o Lampa no Android',
+    install_app_apk_text: 'Notamos que você usa o MediaStationX para executar o Lampa no Android. Recomendamos instalar o Lampa como um aplicativo APK. Isso garantirá uma operação mais estável e acesso a todos os recursos do aplicativo. <br><br>Acesse o grupo do Telegram <span class="account-modal__site">@lampa_group</span> para baixar o APK mais recente e as instruções de instalação.',
+    install_app_apk_qr: 'Escaneie o código QR para baixar o APK do Lampa',
+    copy_link_buffer: 'Copiar link',
 
     tv_status_returning_series: 'Em andamento',
     tv_status_planned: 'Planejado',

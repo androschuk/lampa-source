@@ -67,6 +67,7 @@ export default {
     settings_input_links: 'מועדפים',
     settings_interface_type: 'גרסת לייט',
     settings_interface_size: 'גודל ממשק',
+	settings_interface_menu_always: 'Always show the left menu',
     settings_interface_background: 'רקע כללי',
     settings_interface_background_use: 'הצג רקע',
     settings_interface_background_type: 'סוג רקע',
@@ -1177,4 +1178,9 @@ export default {
     filter_keyword_spy: 'מרגל',
     filter_keyword_disaster: 'קטסטרופה',
     filter_keyword_christmas: 'חג המולד',
+
+    install_app_apk_title: 'כיצד להתקין את Lampa באנדרואיד',
+    install_app_apk_text: 'שמנו לב שאתה משתמש ב-MediaStationX כדי להפעיל את Lampa באנדרואיד. אנו ממליצים להתקין את Lampa כאפליקציית APK. זה יבטיח פעולה יציבה יותר וגישה לכל תכונות האפליקציה. <br><br>עבור לקבוצת הטלגרם <span class="account-modal__site">@lampa_group</span> כדי להוריד את ה-APK והוראות ההתקנה העדכניות ביותר.',
+    install_app_apk_qr: 'סרוק את קוד ה-QR כדי להוריד את ה-APK של Lampa',
+    copy_link_buffer: 'העתק קישור',
 }

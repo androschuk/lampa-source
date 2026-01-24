@@ -17,6 +17,7 @@ function Panel(){
     this.recorder= this.html.find('.shots-lenta-panel__recorder')
     this.year    = this.html.find('.shots-lenta-panel__card-year')
     this.cardbox = this.html.find('.shots-lenta-panel__card')
+    this.body    = this.html.find('.explorer-card__head-body')
     this.last    = this.html.find('.selector')
 
     this.poster  = this.image.find('img')
@@ -40,8 +41,8 @@ function Panel(){
         this.poster.onerror = ()=>{
             this.poster.src = './img/img_broken.svg'
         }
-
-        this.html.querySelectorAll('.selector').forEach((button)=>{
+        
+        Array.from(this.html.querySelectorAll('.selector')).forEach((button)=>{
             button.on('hover:focus hover:hover hover:touch', ()=>{
                 this.last = button
             })
@@ -183,8 +184,14 @@ function Panel(){
 
         this.tags.update(this.shot)
 
-        let elem_likes = $('<div>'+Lampa.Lang.translate('shots_title_likes') + ' ' + Lampa.Utils.bigNumberToShort(this.shot.liked || 0)+'</div>')
-        let elem_saved = $('<div>'+Lampa.Lang.translate('shots_title_saved') + ' ' + Lampa.Utils.bigNumberToShort(this.shot.saved || 0)+'</div>')
+        if(this.shot.tags && this.shot.tags.length){
+            let elem_tags = $('<div>' + this.shot.tags.slice(0,3).map(t=>'#' + Lampa.Lang.translate('shots_tag_' + t.slug)).join(' ') +'</div>')
+
+            this.tags.render().append(elem_tags)
+        }
+
+        let elem_likes = $('<div><svg><use xlink:href="#sprite-love"></use></svg> ' + Lampa.Utils.bigNumberToShort(this.shot.liked || 0)+'</div>')
+        let elem_saved = $('<div><svg><use xlink:href="#sprite-favorite"></use></svg> ' + Lampa.Utils.bigNumberToShort(this.shot.saved || 0)+'</div>')
 
         elem_likes.toggleClass('hide', (this.shot.liked || 0) == 0)
         elem_saved.toggleClass('hide', (this.shot.saved || 0) == 0)

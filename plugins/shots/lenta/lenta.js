@@ -137,6 +137,7 @@ function Lenta(first, playlist){
             this.html.toggleClass('shots-lenta--hide-panel', true)
 
             Lampa.Controller.add('shots_lenta_idle',{
+                link: this.video,
                 toggle: ()=>{
                     Lampa.Controller.clear()
                 },
@@ -167,7 +168,7 @@ function Lenta(first, playlist){
                 Lampa.Controller.clear()
 
                 Lampa.Controller.collectionSet(this.html)
-                Lampa.Controller.collectionFocus(this.panel.last, this.html)
+                Lampa.Controller.collectionFocus(this.panel.body, this.html)
 
                 this.focus()
             },
@@ -240,7 +241,11 @@ function Lenta(first, playlist){
             this.onNext(this.page, (results)=>{
                 this.loading_part = false
 
-                if(results && results.length) this.playlist = this.playlist.concat(results)
+                if(results && results.length){
+                    results.forEach(i=>{
+                        if(!this.playlist.find(p=>p.id == i.id)) this.playlist.push(i)
+                    })
+                }
             })
         }
     }

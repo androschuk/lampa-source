@@ -174,6 +174,12 @@ function time(html){
         let elem_moth  = where.querySelector('.time--moth')
         let elem_full  = where.querySelector('.time--full')
 
+        let listenTimeOffset = (e)=>{
+            if(e.name == 'time_offset') this.tik()
+        }
+
+        Lampa.Storage.listener.follow('change', listenTimeOffset)
+
         this.tik = function(){
             let date = new Date(),
                 time = date.getTime(),
@@ -200,6 +206,8 @@ function time(html){
 
         this.destroy = function(){
             Timer.remove(this.tik)
+
+            Lampa.Storage.listener.remove('change', listenTimeOffset)
         }
 
         Timer.add(60000, this.tik, true)
@@ -670,6 +678,19 @@ function decodePG(pg){
     return pg
 }
 
+/** 
+ * Проверяет можно ли показывать контент с указанным возрастным ограничением
+ * @param {string|integer} pg возрастное ограничение (например, '16+', 'R', 18)
+ * @param {integer} limit возраст профиля (по умолчанию 12)
+ * @returns {boolean}
+ */
+function canWatchChildren(pg, limit){
+    let age = (pg + '').indexOf('+') >= 0 ? parseInt(pg.replace('+','')) : 18
+    let age_limit = limit || 12
+
+    return Lampa.Account.Permit.child ? age_limit >= age : true
+}
+
 function trigger(element, event_name){
     let event = document.createEvent('Event')
 
@@ -1094,5 +1115,6 @@ export default {
     randomMinMax,
     addSource,
     clearHtmlTags,
-    splitEpisodesIntoSeasons
+    splitEpisodesIntoSeasons,
+    canWatchChildren
 }

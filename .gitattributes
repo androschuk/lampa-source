@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Don't merge next files
+public/css/app.css merge=ours
+plugins/shots/css/style.css merge=ours

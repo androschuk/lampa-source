@@ -34,7 +34,7 @@
     "@rollup/stream": "^3.0.1",
     "browser-sync": "^3.0.4",
     "doctrine": "^3.0.0",
-    "eslint": "^10.0.0",
+    "eslint": "^10.0.1",
     "globals": "^17.3.0",
     "gulp": "^5.0.1",
     "gulp-autoprefixer": "^10.0.0",

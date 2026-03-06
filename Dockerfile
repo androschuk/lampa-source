@@ -1,0 +1,23 @@
+# ----- Build stage -----
+FROM node:20-bullseye-slim AS build
+
+WORKDIR /app
+
+# Copy package manifest first to leverage Docker cache for npm install
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+RUN npm ci --no-audit --no-fund
+
+# Copy source and run production build (matches `build:prod`)
+COPY . .
+RUN npx gulp build_all --uglifyJs --uglifyCss
+
+# ----- Production stage -----
+FROM nginx:stable-alpine
+
+# Copy built web output (adjust if you want to serve another platform)
+COPY --from=build /app/build/web /usr/share/nginx/html
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

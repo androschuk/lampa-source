@@ -10,6 +10,36 @@ npm install
 npm run start
 ```
 
+## Run with Docker
+
+This project includes a multi-stage Dockerfile and a `docker-compose.yml` to build the application and serve the built static files with nginx.
+
+### Build and start (production)
+
+```bash
+# Build image and run container
+docker compose build
+docker compose up -d
+```
+
+After the container is up, open your browser and navigate to:
+
+`http://localhost:8080`
+
+(Adjust the host port if you changed `docker-compose.yml`.)
+
+### Stop and remove containers
+
+```bash
+docker compose down
+```
+
+### Verify and troubleshooting
+
+- View container logs: `docker compose logs -f`
+- Check that the built files are present in the container: `docker compose exec lampa ls -la /usr/share/nginx/html`
+- If you changed ports in `docker-compose.yml`, use the mapped host port instead of `8080`.
+
 ## Documentation
 
 Internal documentation can be generated locally:

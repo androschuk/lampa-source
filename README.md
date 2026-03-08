@@ -28,6 +28,20 @@ After the container is up, open your browser and navigate to:
 
 (Adjust the host port if you changed `docker-compose.yml`.)
 
+### Run the prebuilt image from Docker Hub
+
+A prebuilt production image is available on Docker Hub: https://hub.docker.com/r/androschuk/lampa
+
+You can run it directly:
+
+```bash
+docker run -d \
+  --name lampa \
+  --restart unless-stopped \
+  -p 8080:80 \
+  androschuk/lampa
+```
+
 ### Stop and remove containers
 
 ```bash

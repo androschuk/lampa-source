@@ -10,6 +10,20 @@ npm install
 npm run start
 ```
 
+## Run the prebuilt image from Docker Hub
+
+A prebuilt production image is available on Docker Hub: https://hub.docker.com/r/androschuk/lampa
+
+You can run it directly:
+
+```bash
+docker run -d \
+  --name lampa \
+  --restart unless-stopped \
+  -p 8080:80 \
+  androschuk/lampa
+```
+
 ## Run with Docker
 
 This project includes a multi-stage Dockerfile and a `docker-compose.yml` to build the application and serve the built static files with nginx.
@@ -27,20 +41,6 @@ After the container is up, open your browser and navigate to:
 `http://localhost:8080`
 
 (Adjust the host port if you changed `docker-compose.yml`.)
-
-### Run the prebuilt image from Docker Hub
-
-A prebuilt production image is available on Docker Hub: https://hub.docker.com/r/androschuk/lampa
-
-You can run it directly:
-
-```bash
-docker run -d \
-  --name lampa \
-  --restart unless-stopped \
-  -p 8080:80 \
-  androschuk/lampa
-```
 
 ### Stop and remove containers
 

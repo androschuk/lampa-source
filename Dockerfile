@@ -8,8 +8,6 @@ COPY package.json package-lock.json* ./
 
 # Install dependencies
 RUN npm ci --no-audit --no-fund
-# npm install -g npm@latest --no-fund --no-audit \
-  #&& npm ci --no-audit --no-fund
 
 # Copy source and run production build (matches `build:prod`)
 COPY . .

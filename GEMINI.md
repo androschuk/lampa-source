@@ -100,3 +100,17 @@ card.use({
 ## Security & Safety
 - **Secrets**: Never commit API keys or sensitive configurations. Use `window.lampa_settings` for configuration but keep environment-specific secrets out of source control.
 - **Source Control**: Do not stage or commit changes unless explicitly requested.
+
+## Git Workflow
+
+- **Branch Naming**:
+  - Features: `feature/short-description`
+  - Bug fixes: `fix/short-description`
+  - Documentation: `docs/short-description`
+- **Commit Messages**:
+  - Use Conventional Commits format (e.g., `feature: add new player component`).
+  - Keep messages concise and descriptive.
+- **Pull Requests**:
+  - Always create a new branch for changes.
+  - Provide a clear summary of changes and benefits in the PR description.
+  - Reference issues if applicable (e.g., `closes #123`).

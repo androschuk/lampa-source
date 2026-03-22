@@ -3,6 +3,14 @@ name: Docker Image CI
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index/**'
+      - 'package.json'
+      - 'gulpfile.js'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

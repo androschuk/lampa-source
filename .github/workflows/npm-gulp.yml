@@ -3,8 +3,24 @@ name: NodeJS with Gulp
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'src/**'
+      - 'plugins/**'
+      - 'public/**'
+      - 'index/**'
+      - 'package.json'
+      - 'gulpfile.js'
+      - 'eslint.config.mjs'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'src/**'
+      - 'plugins/**'
+      - 'public/**'
+      - 'index/**'
+      - 'package.json'
+      - 'gulpfile.js'
+      - 'eslint.config.mjs'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

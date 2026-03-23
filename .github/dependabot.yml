@@ -10,3 +10,40 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "npm"
+      - "dependencies"
+    # Group linting dependencies to reduce PR noise
+    groups:
+      lint-configs:
+        patterns:
+          - "eslint*"
+          - "prettier*"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "github-actions"
+      - "dependencies"
+
+  # Enable version updates for Docker in the root directory
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "docker"
+      - "dependencies"
+
+  # Enable version updates for Docker in index/github directory
+  - package-ecosystem: "docker"
+    directory: "/index/github"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "docker"
+      - "dependencies"

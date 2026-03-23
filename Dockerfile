@@ -14,7 +14,7 @@ COPY . .
 RUN npx gulp build_all --uglifyJs --uglifyCss
 
 # ----- Production stage -----
-FROM nginx:1.28-alpine
+FROM nginx:1.29-alpine
 
 # Copy built web output (adjust if you want to serve another platform)
 COPY --from=build /app/build/web /usr/share/nginx/html

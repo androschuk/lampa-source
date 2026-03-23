@@ -11,6 +11,8 @@ on:
       - 'gulpfile.js'
       - 'Dockerfile'
       - 'docker-compose.yml'
+  pull_request:
+    branches: [ "main" ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,12 +25,22 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -38,5 +50,11 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
+          platforms: linux/amd64,linux/arm64
           tags: androschuk/lampa:latest
+          # cache improvements
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # provenance: false disables the generation of SBOM and signature, which can speed up the build process. Enable if you need these features.
+          provenance: false

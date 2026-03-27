@@ -24,13 +24,9 @@
     "glob": "^11.0.3"
   },
   "devDependencies": {
-    "@babel/core": "^7.29.0",
-    "@babel/preset-env": "^7.29.2",
     "@eslint/js": "^10.0.1",
-    "@rollup/plugin-babel": "^7.0.0",
     "@rollup/plugin-commonjs": "^29.0.2",
     "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rollup/plugin-terser": "^1.0.0",
     "@rollup/stream": "^3.0.1",
     "browser-sync": "^3.0.4",
     "doctrine": "^3.0.0",
@@ -38,7 +34,6 @@
     "globals": "^17.4.0",
     "gulp": "^5.0.1",
     "gulp-autoprefixer": "^10.0.0",
-    "gulp-concat": "^2.6.1",
     "gulp-file-include": "^2.3.0",
     "gulp-if": "^3.0.0",
     "gulp-newer": "^1.4.0",

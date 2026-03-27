@@ -103,6 +103,22 @@ card.use({
 
 ## Git Workflow
 
+- **Branch Creation**:
+  - Before creating a new branch, always ensure your local `main` is up to date:
+    ```bash
+    git checkout main
+    git pull
+    ```
+  - If you have uncommitted changes that conflict with `pull`:
+    1. `git stash` (save changes)
+    2. `git pull` (update main)
+    3. `git stash pop` (restore changes and resolve conflicts)
+  - **Efficient Method**: To update local `main` without switching branches:
+    ```bash
+    git fetch origin main:main
+    ```
+    Then rebase or merge your current branch if needed.
+
 - **Branch Naming**:
   - Features: `feature/short-description`
   - Bug fixes: `fix/short-description`

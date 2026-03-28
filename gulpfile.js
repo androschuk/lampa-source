@@ -125,7 +125,7 @@ function prepareRollup(inputFolder, fileName, minify = false){
             esbuild({ 
                 target: 'es2017',
                 minify: minify,
-                keepNames: true
+                legalComments: 'none'
             }),
             commonjs, 
             nodeResolve,

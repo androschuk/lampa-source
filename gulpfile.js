@@ -17,7 +17,6 @@ import rollup from '@rollup/stream';
 import { join } from 'path';
 import { parse } from 'doctrine';
 import esbuild from 'rollup-plugin-esbuild';
-import gulpTerser from 'gulp-terser';
 import sharp from 'sharp';
 import { Transform } from 'stream';
 import { extname } from 'path';
@@ -86,10 +85,9 @@ function buildAppMinJs() {
     const full_date = getFullDate()
     console.log(` - building app.min.js (app build date: ${full_date})`)
 
-    return prepareRollup(srcFolder, "app.js")
+    return prepareRollup(srcFolder, "app.js", options.js.uglify.mangle)
       .pipe(replace(/return kIsNodeJS/g, "return false"))
       .pipe(replace('{__APP_BUILD__}', full_date))
-      .pipe(uglifyJs())
       .pipe(new Transform({
             objectMode: true,
             transform(file, encoding, callback) {
@@ -120,11 +118,15 @@ function getFullDate(){
 }
 
 /** Prepare rollout */
-function prepareRollup(inputFolder, fileName){
+function prepareRollup(inputFolder, fileName, minify = false){
     return rollup({
         input: join(inputFolder, fileName),
         plugins: [
-            esbuild({ target: 'es2017' }),
+            esbuild({ 
+                target: 'es2017',
+                minify: minify,
+                keepNames: true
+            }),
             commonjs, 
             nodeResolve,
             worker(),
@@ -168,8 +170,7 @@ function buildJsPlugins() {
     const tasks = directories.map(folder => {
         return new Promise((resolve, reject) => {
             console.log(` 🧩 ${folder}`)
-            prepareRollup(plgFolder, `${folder}/${folder}.js`)
-            .pipe(uglifyJs())
+            prepareRollup(plgFolder, `${folder}/${folder}.js`, options.js.uglify.mangle)
             .pipe(fileinclude({
                 prefix: '@@',
                 basepath: '@file'
@@ -333,17 +334,7 @@ function buildManifest(done){
 function copyLanguages(platform){
     return src(join(srcFolder, 'lang/*.js'))
         .pipe(plumber({ errorHandler: handleError }))
-        .pipe(uglifyJs())
         .pipe(dest(join(bldFolder, platform, 'lang')))
-}
-
-/** Uglify js files if `options.js.uglify.mangle` is true */
-function uglifyJs() {
-    if (options.js.uglify.mangle){
-        console.info(`  - uglify.`);
-    }
-
-    return gulpIf(options.js.uglify.mangle, gulpTerser(options.js.uglify));
 }
 
 /** Copy Static files */

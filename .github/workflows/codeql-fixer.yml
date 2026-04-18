@@ -6,6 +6,16 @@ on:
       alert_number:
         description: 'CodeQL alert number (leave empty for the latest open alert)'
         required: false
+      model:
+        description: 'Select Gemini model'
+        required: true
+        default: 'gemini-3-flash-preview'
+        type: choice
+        options:
+          - 'gemini-3-flash-preview'
+          - 'gemini-3.1-flash-lite-preview'
+          - 'gemini-2.5-flash'
+          - 'gemini-2.5-flash-lite'
 
 jobs:
   fix-codeql-issue:
@@ -70,8 +80,9 @@ jobs:
           VULN_DESC: ${{ steps.codeql.outputs.description }}
           VULN_LOC: ${{ steps.codeql.outputs.location }}
           VULN_JSON: ${{ steps.codeql.outputs.full_json }}
+          SELECTED_MODEL: ${{ github.event.inputs.model }}
         run: |
-          gemini "Repair the security vulnerability found by $VULN_TOOL.
+          gemini --model "$SELECTED_MODEL" "Repair the security vulnerability found by $VULN_TOOL.
           
           VULNERABILITY DETAILS:
           - Description: $VULN_DESC

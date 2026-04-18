@@ -36,12 +36,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Fetch alert details using GitHub CLI
           if [ -z "${{ github.event.inputs.alert_number }}" ]; then
-            # Get the most recent open alert
             ALERT=$(gh api repos/${{ github.repository }}/code-scanning/alerts?state=open --jq '.[0]')
           else
-            # Get a specific alert by number
             ALERT=$(gh api repos/${{ github.repository }}/code-scanning/alerts/${{ github.event.inputs.alert_number }})
           fi
           
@@ -50,26 +47,39 @@ jobs:
             exit 1
           fi
 
-          echo "description=$(echo $ALERT | jq -r '.rule.description')" >> $GITHUB_OUTPUT
-          echo "tool=$(echo $ALERT | jq -r '.tool.name')" >> $GITHUB_OUTPUT
-          echo "location=$(echo $ALERT | jq -r '.most_recent_instance.location.path + ":" + (.most_recent_instance.location.start_line|to_string)')" >> $GITHUB_OUTPUT
-          echo "alert_number=$(echo $ALERT | jq -r '.number')" >> $GITHUB_OUTPUT
-          # Escape JSON for command line usage
-          echo "full_json=$(echo $ALERT | jq -c .)" >> $GITHUB_OUTPUT
+          # Extract data separately to avoid jq formatting issues
+          DESC=$(echo $ALERT | jq -r '.rule.description')
+          TOOL=$(echo $ALERT | jq -r '.tool.name')
+          PATH_VAL=$(echo $ALERT | jq -r '.most_recent_instance.location.path')
+          LINE_VAL=$(echo $ALERT | jq -r '.most_recent_instance.location.start_line')
+          NUM=$(echo $ALERT | jq -r '.number')
+          
+          echo "description=$DESC" >> $GITHUB_OUTPUT
+          echo "tool=$TOOL" >> $GITHUB_OUTPUT
+          echo "location=${PATH_VAL}:${LINE_VAL}" >> $GITHUB_OUTPUT
+          echo "alert_number=$NUM" >> $GITHUB_OUTPUT
+          # Pass raw JSON via multi-line output to preserve structure
+          echo "full_json<<EOF" >> $GITHUB_OUTPUT
+          echo "$ALERT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Gemini Security Fix
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VULN_TOOL: ${{ steps.codeql.outputs.tool }}
+          VULN_DESC: ${{ steps.codeql.outputs.description }}
+          VULN_LOC: ${{ steps.codeql.outputs.location }}
+          VULN_JSON: ${{ steps.codeql.outputs.full_json }}
         run: |
-          gemini "Repair the security vulnerability found by ${{ steps.codeql.outputs.tool }}.
+          gemini "Repair the security vulnerability found by $VULN_TOOL.
           
           VULNERABILITY DETAILS:
-          - Description: ${{ steps.codeql.outputs.description }}
-          - Location: ${{ steps.codeql.outputs.location }}
-          - Context: ${{ steps.codeql.outputs.full_json }}
+          - Description: $VULN_DESC
+          - Location: $VULN_LOC
+          - Context (JSON): $VULN_JSON
 
           MANDATORY WORKFLOW:
-          1. Activate 'systematic-debugging' to analyze the vulnerability at ${{ steps.codeql.outputs.location }}.
+          1. Activate 'systematic-debugging' to analyze the vulnerability at $VULN_LOC.
           2. Activate 'find-docs' to research the specific CodeQL rule and security best practices.
           3. Activate 'writing-plans' to design a robust fix.
           4. Follow 'test-driven-development' (TDD) to reproduce the issue with a test and then fix it.

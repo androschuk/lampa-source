@@ -13,6 +13,7 @@ on:
         type: choice
         options:
           - 'gemini-3-flash-preview'
+          - 'gemini-1.5-pro'
           - 'gemini-3.1-flash-lite-preview'
           - 'gemini-2.5-flash'
           - 'gemini-2.5-flash-lite'
@@ -95,8 +96,13 @@ jobs:
           3. Activate 'writing-plans' to design a robust fix.
           4. Follow 'test-driven-development' (TDD) to reproduce the issue with a test and then fix it.
           5. Use 'verification-before-completion' to ensure the fix is correct and no regressions were introduced.
-          
-          IMPORTANT: Perform only code changes and verification. Do not attempt to commit or push."
+
+          OPERATIONAL DIRECTIVES:
+          - BE FULLY AUTONOMOUS: Do not ask for confirmation or approval. Execute the plan immediately after designing it.
+          - NO GLOBAL CHANGES: Do not modify global contracts, public APIs, or major architectural patterns. The fix must be surgical and local to the vulnerability.
+          - CI ENVIRONMENT: You are running in a GitHub Action. Perform only code changes and verification. Do not attempt to commit or push.
+          - PREVENT LOOPS: If you detect an infinite loop or repeated failures with no progress, stop immediately and explain the bottleneck.
+"
 
       - name: Run Linting
         run: npm run lint:fix || echo "Linting found issues that couldn't be auto-fixed, but continuing to PR creation."

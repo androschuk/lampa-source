@@ -1,0 +1,13 @@
+{
+  "general": {
+    "maxAttempts": 10
+  },
+  "contextManagement": {
+    "historyWindow": {
+      "maxTokens": 1500000
+    }
+  },
+  "tools": {
+    "truncateToolOutputThreshold": 15000
+  }
+}

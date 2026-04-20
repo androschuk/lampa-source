@@ -13,10 +13,11 @@ on:
         type: choice
         options:
           - 'gemini-3-flash-preview'
-          - 'gemini-1.5-pro'
           - 'gemini-3.1-flash-lite-preview'
-          - 'gemini-2.5-flash'
           - 'gemini-2.5-flash-lite'
+          - 'gemma-4-26b'
+          - 'gemma-4-31b'
+          - 'gemini-1.5-pro'
 
 jobs:
   fix-codeql-issue:
@@ -37,7 +38,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install Gemini CLI
         run: npm install -g @google/gemini-cli
@@ -83,25 +84,30 @@ jobs:
           VULN_JSON: ${{ steps.codeql.outputs.full_json }}
           SELECTED_MODEL: ${{ github.event.inputs.model }}
         run: |
-          gemini --model "$SELECTED_MODEL" "Repair the security vulnerability found by $VULN_TOOL.
+          # Apply model-specific configuration
+          if [[ "$SELECTED_MODEL" == "gemini-3-flash-preview" ]]; then
+            cp .gemini/configs/gemini-3-flash.json .gemini/settings.json
+          elif [[ "$SELECTED_MODEL" == "gemini-3.1-flash-lite-preview" ]]; then
+            cp .gemini/configs/gemini-3-1-flash-lite.json .gemini/settings.json
+          elif [[ "$SELECTED_MODEL" == "gemini-2.5-flash-lite" ]]; then
+            cp .gemini/configs/gemini-2-5-flash-lite.json .gemini/settings.json
+          elif [[ "$SELECTED_MODEL" == *"gemma-4"* ]]; then
+            cp .gemini/configs/gemma-4.json .gemini/settings.json
+          elif [[ "$SELECTED_MODEL" == *"pro"* ]]; then
+            cp .gemini/configs/gemini-pro.json .gemini/settings.json
+          fi
+          
+          gemini --model "$SELECTED_MODEL" "Use the 'security-fixer' skill to repair the security vulnerability found by $VULN_TOOL.
           
           VULNERABILITY DETAILS:
           - Description: $VULN_DESC
           - Location: $VULN_LOC
-          - Context (JSON): $VULN_JSON
+          - Context (JSON): $VULN_JSON"
 
-          MANDATORY WORKFLOW:
-          1. Activate 'systematic-debugging' to analyze the vulnerability at $VULN_LOC.
-          2. Activate 'find-docs' to research the specific CodeQL rule and security best practices.
-          3. Activate 'writing-plans' to design a robust fix.
-          4. Follow 'test-driven-development' (TDD) to reproduce the issue with a test and then fix it.
-          5. Use 'verification-before-completion' to ensure the fix is correct and no regressions were introduced.
-
-          OPERATIONAL DIRECTIVES:
-          - BE FULLY AUTONOMOUS: Do not ask for confirmation or approval. Execute the plan immediately after designing it.
-          - NO GLOBAL CHANGES: Do not modify global contracts, public APIs, or major architectural patterns. The fix must be surgical and local to the vulnerability.
-          - CI ENVIRONMENT: You are running in a GitHub Action. Perform only code changes and verification. Do not attempt to commit or push.
-          - PREVENT LOOPS: If you detect an infinite loop or repeated failures with no progress, stop immediately and explain the bottleneck."
+      - name: Display Token Statistics
+        run: |
+          echo "### Gemini Usage Statistics" >> $GITHUB_STEP_SUMMARY
+          gemini --stats >> $GITHUB_STEP_SUMMARY || echo "Stats command not supported or failed" >> $GITHUB_STEP_SUMMARY
 
       - name: Run Linting
         run: npm run lint:fix || echo "Linting found issues that couldn't be auto-fixed, but continuing to PR creation."

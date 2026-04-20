@@ -4,3 +4,9 @@ node_modules/
 .idea
 public/css/app.css
 plugins/**/style.css
+
+# Gemini CLI
+.gemini/settings.json
+.gemini/tmp/
+tool-outputs/
+

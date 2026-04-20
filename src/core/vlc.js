@@ -27,13 +27,17 @@ function getVLCURL(port) {
  * Сохранение таймкода при закрытии плеера
  */
 function saveTimecodeOnVLCClose(hash) {
-    if (lastSuccessfulTimecode && hash && vlcCallbacks[hash]) {
+    if (lastSuccessfulTimecode && vlcCallbacks[hash]) {
         console.log('VLC', 'Процесс закрылся, сохраняем последний timecode:', lastSuccessfulTimecode)
-        vlcCallbacks[hash](
-            lastSuccessfulTimecode.percent,
-            lastSuccessfulTimecode.currentTime,
-            lastSuccessfulTimecode.duration
-        )
+        
+        const callback = vlcCallbacks[hash]
+        if (typeof callback === 'function') {
+            callback(
+                lastSuccessfulTimecode.percent,
+                lastSuccessfulTimecode.currentTime,
+                lastSuccessfulTimecode.duration
+            )
+        }
 
         // Очищаем всё после сохранения
         stopTimecodePolling()
@@ -88,7 +92,7 @@ function fetchAndSaveTimecode(port, password, hash) {
                 console.log('VLC', 'Превышен лимит неудачных попыток, останавливаем polling')
 
                 // Сохраняем последний известный timecode, если он есть
-                if (lastSuccessfulTimecode && vlcCallbacks[hash]) {
+                if (lastSuccessfulTimecode && typeof vlcCallbacks[hash] === 'function') {
                     console.log('VLC', 'Сохраняем последний timecode перед остановкой')
                     vlcCallbacks[hash](
                         lastSuccessfulTimecode.percent,

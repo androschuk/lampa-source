@@ -133,7 +133,7 @@ jobs:
           
           # List skills to verify discovery
           echo "Discovered Skills:"
-          gemini --skills list
+          gemini skills list
           
           gemini --model "$SELECTED_MODEL" --approval-mode=yolo "Use the 'security-fixer' skill to repair the security vulnerability: $VULN_DESC at $VULN_LOC.
           

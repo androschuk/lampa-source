@@ -9,15 +9,15 @@ on:
       model:
         description: 'Select Gemini model'
         required: true
-        default: 'gemini-3-flash-preview'
+        default: 'gemini-2.5-flash'
         type: choice
         options:
-          - 'gemini-3-flash-preview'
+          - 'gemini-2.5-flash'
+          - 'gemini-2.5-pro'
+          - 'gemini-3.1-pro-preview'
           - 'gemini-3.1-flash-lite-preview'
-          - 'gemini-2.5-flash-lite'
-          - 'gemma-4-26b'
-          - 'gemma-4-31b'
-          - 'gemini-1.5-pro'
+          - 'gemma-4-26b-a4b-it'
+          - 'gemma-4-31b-it'
 
 jobs:
   fix-codeql-issue:
@@ -84,18 +84,42 @@ jobs:
           VULN_JSON: ${{ steps.codeql.outputs.full_json }}
           SELECTED_MODEL: ${{ github.event.inputs.model }}
         run: |
-          # Apply model-specific configuration
-          if [[ "$SELECTED_MODEL" == "gemini-3-flash-preview" ]]; then
-            cp .gemini/configs/gemini-3-flash.json .gemini/settings.json
-          elif [[ "$SELECTED_MODEL" == "gemini-3.1-flash-lite-preview" ]]; then
-            cp .gemini/configs/gemini-3-1-flash-lite.json .gemini/settings.json
-          elif [[ "$SELECTED_MODEL" == "gemini-2.5-flash-lite" ]]; then
-            cp .gemini/configs/gemini-2-5-flash-lite.json .gemini/settings.json
-          elif [[ "$SELECTED_MODEL" == *"gemma-4"* ]]; then
-            cp .gemini/configs/gemma-4.json .gemini/settings.json
-          elif [[ "$SELECTED_MODEL" == *"pro"* ]]; then
-            cp .gemini/configs/gemini-pro.json .gemini/settings.json
-          fi
+          mkdir -p .gemini
+          
+          # Fetch model metadata to get inputTokenLimit
+          MODEL_ID="$SELECTED_MODEL"
+          [[ "$MODEL_ID" != models/* ]] && MODEL_ID="models/$MODEL_ID"
+          
+          echo "Fetching metadata for $MODEL_ID..."
+          MODEL_INFO=$(curl -s "https://generativelanguage.googleapis.com/v1beta/$MODEL_ID?key=$GEMINI_API_KEY")
+          
+          # Extract inputTokenLimit or default to 1M
+          MAX_TOKENS=$(echo "$MODEL_INFO" | jq -r '.inputTokenLimit // 1048576')
+          
+          # Determine maxAttempts based on model tier
+          ATTEMPTS=10
+          [[ "$SELECTED_MODEL" == *"flash"* ]] && ATTEMPTS=25
+          [[ "$SELECTED_MODEL" == *"gemma"* ]] && ATTEMPTS=15
+          
+          echo "Dynamic Configuration Applied:"
+          echo "- Max Tokens: $MAX_TOKENS"
+          echo "- Max Attempts: $ATTEMPTS"
+          
+          cat <<EOF > .gemini/settings.json
+          {
+            "general": {
+              "maxAttempts": $ATTEMPTS
+            },
+            "contextManagement": {
+              "historyWindow": {
+                "maxTokens": $MAX_TOKENS
+              }
+            },
+            "tools": {
+              "truncateToolOutputThreshold": 10000
+            }
+          }
+          EOF
           
           gemini --model "$SELECTED_MODEL" "Use the 'security-fixer' skill to repair the security vulnerability found by $VULN_TOOL.
           

@@ -74,16 +74,45 @@ jobs:
           SEVERITY=$(echo "$ALERT" | jq -r '.rule.security_severity_level // "unknown"')
           HELP_URL=$(echo "$ALERT" | jq -r '.rule.help_uri // ""')
           
-          echo "description=$DESC" >> $GITHUB_OUTPUT
-          echo "rule_id=$RULE_ID" >> $GITHUB_OUTPUT
-          echo "message=$MESSAGE" >> $GITHUB_OUTPUT
-          echo "tool=$TOOL" >> $GITHUB_OUTPUT
-          echo "location=${PATH_VAL}:${LINE_VAL}" >> $GITHUB_OUTPUT
-          echo "alert_number=$NUM" >> $GITHUB_OUTPUT
-          echo "tags=$TAGS" >> $GITHUB_OUTPUT
-          echo "cwe=$CWE" >> $GITHUB_OUTPUT
-          echo "severity=$SEVERITY" >> $GITHUB_OUTPUT
-          echo "help_url=$HELP_URL" >> $GITHUB_OUTPUT
+          echo "description<<EOF" >> $GITHUB_OUTPUT
+          echo "$DESC" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "rule_id<<EOF" >> $GITHUB_OUTPUT
+          echo "$RULE_ID" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo "$MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "tool<<EOF" >> $GITHUB_OUTPUT
+          echo "$TOOL" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "location<<EOF" >> $GITHUB_OUTPUT
+          echo "${PATH_VAL}:${LINE_VAL}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "alert_number<<EOF" >> $GITHUB_OUTPUT
+          echo "$NUM" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "cwe<<EOF" >> $GITHUB_OUTPUT
+          echo "$CWE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "severity<<EOF" >> $GITHUB_OUTPUT
+          echo "$SEVERITY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "help_url<<EOF" >> $GITHUB_OUTPUT
+          echo "$HELP_URL" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           # Clean JSON: keep only essential parts for the fix to save tokens
           CLEAN_JSON=$(echo "$ALERT" | jq -c '{

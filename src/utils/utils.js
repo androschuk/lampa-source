@@ -538,9 +538,11 @@ function uid(len){
     var ID_LENGTH = len || 8;
 
     var id = '';
+    var randomValues = new Uint32Array(ID_LENGTH);
+    window.crypto.getRandomValues(randomValues);
 
     for (var i = 0; i < ID_LENGTH; i++) {
-        id += ALPHABET.charAt(Math.floor(Math.random() * ALPHABET.length));
+        id += ALPHABET.charAt(randomValues[i] % ALPHABET.length);
     }
 
     return id;
@@ -885,12 +887,14 @@ function qualityToText(quality){
 function guid() {
     let hex = "0123456789ABCDEF";
     let gi  = "";
+    let randomValues = new Uint32Array(36);
+    window.crypto.getRandomValues(randomValues);
 
     for (let i = 0; i < 36; i++) {
         if (i === 8 || i === 13 || i === 18 || i === 23) {
             gi += "-";
         } else {
-            let r = Math.floor(Math.random() * 16);
+            let r = randomValues[i] % 16;
             // Устанавливаем версию и variant по UUIDv4 спецификации
             if (i === 14) r = 4; // версия 4
             if (i === 19) r = (r & 0x3) | 0x8; // variant
@@ -973,7 +977,10 @@ function containsJapanese(text) {
 }
 
 function randomMinMax(min, max) {
-    return Math.floor(Math.random() * (max - min + 1) + min)
+    const range = max - min + 1;
+    const randomBuffer = new Uint32Array(1);
+    window.crypto.getRandomValues(randomBuffer);
+    return min + (randomBuffer[0] % range);
 }
 
 /**

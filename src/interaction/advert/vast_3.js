@@ -424,7 +424,7 @@ class Vast3 {
 
         let pixel_ratio = window.devicePixelRatio || 1
 
-        let u = this.preroll.url.replace('{RANDOM}', Math.round(Date.now() * Math.random()))
+        let u = this.preroll.url.replace('{RANDOM}', Math.round(Date.now() * (window.crypto.getRandomValues(new Uint32Array(1))[0] * Math.pow(2, -32))))
             u = u.replace(/{TIME}/g,         Date.now())
             u = u.replace(/{WIDTH}/g,         Math.round(window.innerWidth  * pixel_ratio))
             u = u.replace(/{HEIGHT}/g,        Math.round(window.innerHeight * pixel_ratio))

@@ -130,6 +130,7 @@ jobs:
         id: fix_attempt
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_CLI_TRUST_WORKSPACE: true
           VULN_TOOL: ${{ steps.codeql.outputs.tool }}
           VULN_DESC: ${{ steps.codeql.outputs.description }}
           VULN_LOC: ${{ steps.codeql.outputs.location }}

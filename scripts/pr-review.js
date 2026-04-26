@@ -213,17 +213,44 @@ Analyze the changes and provide your response in the specified JSON format.
         }
         
         let text = result.candidates[0].content.parts[0].text.trim();
-        text = text.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+        
+        // Advanced JSON extraction: find the first { or [ and the last } or ]
+        const findJSON = (str) => {
+            const firstBrace = str.indexOf('{');
+            const firstBracket = str.indexOf('[');
+            let start = -1;
+            let end = -1;
 
-        try {
-            if (!text || text === "[]") return { general_answer: "", comments: [] };
-            if (text.startsWith('{')) return JSON.parse(text);
-            if (text.startsWith('[')) return { general_answer: "", comments: JSON.parse(text) };
-            return { general_answer: text, comments: [] };
-        } catch (e) {
-            console.error("[AI] Failed to parse JSON. Raw output snapshot:", text.substring(0, 500));
-            return { general_answer: "Failed to parse the AI response.", comments: [] };
+            if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+                start = firstBrace;
+                end = str.lastIndexOf('}');
+            } else if (firstBracket !== -1) {
+                start = firstBracket;
+                end = str.lastIndexOf(']');
+            }
+
+            if (start !== -1 && end !== -1 && end > start) {
+                return str.substring(start, end + 1);
+            }
+            return null;
+        };
+
+        const jsonContent = findJSON(text);
+        if (jsonContent) {
+            try {
+                const parsed = JSON.parse(jsonContent);
+                if (Array.isArray(parsed)) return { general_answer: "", comments: parsed };
+                return parsed;
+            } catch (e) {
+                console.error("[AI] Failed to parse extracted JSON block.");
+            }
         }
+
+        // Fallback to text analysis if no JSON found
+        if (text.toLowerCase().includes("no issues") || text.toLowerCase().includes("looks good")) {
+            return { general_answer: "", comments: [] };
+        }
+        return { general_answer: text, comments: [] };
     } catch (e) {
         if (e.name === 'AbortError') throw new Error(`[AI] Request timed out after 180s`);
         throw e;

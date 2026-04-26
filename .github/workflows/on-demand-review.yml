@@ -1,4 +1,4 @@
-name: "Bot Commands (Review & Build)"
+name: "AI Assistants (Review & Build)"
 
 on:
   issue_comment:

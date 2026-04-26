@@ -273,9 +273,10 @@ async function main() {
 
         // SPECIAL LOGIC FOR ADD TEST: Commit files instead of commenting
         if (mode === 'test') {
-            console.log("[Process] Processing test files for commit...");
+            console.log(`[Process] Processing ${reviewItems.length} items for test commit...`);
             const createdFiles = [];
             for (const item of reviewItems) {
+                console.log(`[Debug] Item: file=${item.file}, hasSuggestion=${!!item.suggestion}`);
                 if (item.file && item.suggestion) {
                     const filePath = item.file;
                     const dir = path.dirname(filePath);
@@ -300,6 +301,9 @@ async function main() {
                     await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body });
                 }
                 console.log("[Process] Tests committed and pushed.");
+            } else {
+                console.warn("[Process] No files were created from AI response. Check the debug logs above.");
+                // We stay silent in the PR comments to avoid noise if AI failed to format properly
             }
             return;
         }

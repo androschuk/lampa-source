@@ -172,7 +172,14 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
             try {
                 const parsed = JSON.parse(jsonContent);
                 return Array.isArray(parsed) ? { general_answer: "", comments: parsed } : parsed;
-            } catch (e) { console.error("[AI] JSON Parse failed."); }
+            } catch (e) { 
+                console.error("[AI] JSON Parse failed. Error:", e.message);
+                console.error("[AI] Content that failed to parse (first 1000 chars):");
+                console.error(jsonContent.substring(0, 1000));
+            }
+        } else {
+            console.warn("[AI] No JSON-like structure found in response. Raw text snapshot:");
+            console.warn(text.substring(0, 500));
         }
         return { general_answer: text, comments: [] };
     } catch (e) {

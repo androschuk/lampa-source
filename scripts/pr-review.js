@@ -11,7 +11,6 @@ import path from 'path';
  * It analyzes the PR changes using the gemma-4-31b-it model and posts inline review comments.
  */
 
-
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const PR_NUMBER = parseInt(process.env.PR_NUMBER);
@@ -68,7 +67,6 @@ function loadPrompts(mode) {
             .replace('{{modeInstructions}}', inst);
     } catch (e) {
         console.error(`Error loading prompts from ${skillPath}: ${e.message}`);
-        // Fallback to hardcoded if file is missing (minimal version)
         return `Perform a code review for mode: ${mode}. Return JSON.`;
     }
 }
@@ -86,7 +84,6 @@ async function manageReaction(action) {
                 content: 'eyes',
             });
         } else if (action === 'remove') {
-            // To remove a reaction, we first need to find its ID
             const { data: reactions } = await octokit.reactions.listForIssueComment({
                 owner,
                 repo,
@@ -166,7 +163,7 @@ ${priorityFilesContext ? `Full Context for Priority Files:\n${priorityFilesConte
 Analyze the changes and provide your review in the specified JSON format.
 `;
 
-    console.log(`Analyzing changes with ${MODEL_NAME}...`);
+    console.log(`[AI] Sending request to Gemini (${MODEL_NAME})...`);
     const response = await fetch(url, {
         method: 'POST',
         headers: { 
@@ -178,7 +175,7 @@ Analyze the changes and provide your review in the specified JSON format.
                 parts: [{ text: systemPrompt + "\n\n" + userPrompt }]
             }],
             generationConfig: {
-                temperature: 0.1, // Low temperature for consistent JSON output
+                temperature: 0.1,
             }
         })
     });
@@ -190,24 +187,35 @@ Analyze the changes and provide your review in the specified JSON format.
 
     const result = await response.json();
     if (!result.candidates || !result.candidates[0].content) {
-        console.error("Gemini API Error: No content in response", JSON.stringify(result));
+        console.error("[AI] Error: Empty response from model");
         return [];
     }
     
     let text = result.candidates[0].content.parts[0].text.trim();
     
     // Cleanup if the model ignored instructions and added markdown blocks
-    if (text.startsWith('```json')) {
-        text = text.replace(/^```json\n/, '').replace(/\n```$/, '');
-    } else if (text.startsWith('```')) {
-        text = text.replace(/^```\n?/, '').replace(/\n?```$/, '');
-    }
+    text = text.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
 
     try {
-        return JSON.parse(text);
+        // If the model returned an empty string or "[]", it's an empty array
+        if (!text || text === "[]") return [];
+        
+        // If the response starts with [, try to parse it
+        if (text.startsWith('[')) {
+            return JSON.parse(text);
+        }
+        
+        // If it's a plain text response saying "no issues", return empty array
+        if (text.toLowerCase().includes("no issues") || text.toLowerCase().includes("looks good")) {
+            console.log("[AI] Plain text response indicates no issues.");
+            return [];
+        }
+
+        console.warn("[AI] Unexpected text response, returning empty array.");
+        return [];
     } catch (e) {
-        console.error("Failed to parse Gemini response as JSON. Raw text:");
-        console.error(text);
+        console.error("[AI] Failed to parse JSON. Raw output snapshot:");
+        console.error(text.substring(0, 500));
         return [];
     }
 }
@@ -224,22 +232,23 @@ async function main() {
     try {
         const files = await fetchPRFiles();
         if (files.length === 0) {
-            console.log("No files to review after filtering.");
+            console.log("[Process] No relevant files found for review.");
             return;
         }
+        console.log(`[Process] Found ${files.length} files to analyze.`);
 
         let diffData = "";
         let priorityFilesContext = "";
 
         for (const file of files) {
+            console.log(`[Process] Adding diff: ${file.filename} (+${file.additions}/-${file.deletions})`);
             diffData += `--- File: ${file.filename} ---\n${file.patch}\n\n`;
             
-            // Two-pass: fetch full content for priority files
             const isCore = file.filename === 'src/app.js' || file.filename.startsWith('src/core/');
             const isComplex = file.changes > 100;
 
             if (isCore || isComplex) {
-                console.log(`Fetching full content for priority file: ${file.filename}`);
+                console.log(`[Process] Priority file detected, fetching full content: ${file.filename}`);
                 const content = await getFileContent(file.filename);
                 if (content) {
                     priorityFilesContext += `### FULL CONTENT OF ${file.filename} ###\n${content}\n\n`;
@@ -250,11 +259,18 @@ async function main() {
         const reviewItems = await analyzeWithGemini(diffData, priorityFilesContext, mode);
 
         if (!Array.isArray(reviewItems) || reviewItems.length === 0) {
-            console.log("Gemini found no issues to report.");
+            console.log("[AI] No issues found. Posting positive review...");
+            await octokit.pulls.createReview({
+                owner,
+                repo,
+                pull_number: PR_NUMBER,
+                event: 'COMMENT',
+                body: `✅ **Code Review** completed.\n\nNo significant issues were found. The code looks good! 🚀`
+            });
             return;
         }
 
-        console.log(`Gemini found ${reviewItems.length} issues. Preparing review...`);
+        console.log(`[AI] Found ${reviewItems.length} issues. Preparing review...`);
 
         const prFiles = new Set(files.map(f => f.filename));
         const comments = reviewItems.map(item => {

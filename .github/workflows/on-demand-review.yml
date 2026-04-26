@@ -7,7 +7,7 @@ on:
 jobs:
   # Job for Code Review
   review:
-    if: github.event.comment.user.login == 'androschuk' && contains(github.event.comment.body, '/ai review') && github.event.issue.pull_request
+    if: github.event.comment.user.login == 'androschuk' && contains(github.event.comment.body, '/ai ') && !contains(github.event.comment.body, '/ai build') && github.event.issue.pull_request
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

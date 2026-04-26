@@ -7,7 +7,7 @@ import path from 'path';
 /**
  * On-Demand Smart Code Review Script
  * 
- * This script is triggered by a GitHub Action when a comment '/ai review [mode]' is made on a PR.
+ * This script is triggered by a GitHub Action when a comment starting with '/ai ' is made on a PR.
  * It analyzes the PR changes using a Gemini model and posts inline review comments.
  */
 
@@ -38,7 +38,7 @@ const IGNORED_PATHS = [
 /**
  * Loads the system prompt and instructions from the skill file.
  */
-function loadPrompts(mode) {
+function loadPrompts(mode, userQuery = '') {
     const skillPath = path.join(process.cwd(), '.gemini/skills/code-review-prompts/SKILL.md');
     console.log(`[Config] Loading prompts from: ${skillPath}`);
     try {
@@ -54,10 +54,14 @@ function loadPrompts(mode) {
         const secureInst = extractSection('MODE_INSTRUCTIONS_SECURE');
         const perfInst = extractSection('MODE_INSTRUCTIONS_PERF');
         const defaultInst = extractSection('MODE_INSTRUCTIONS_DEFAULT');
+        const testInst = extractSection('MODE_INSTRUCTIONS_TEST');
+        const queryInst = extractSection('MODE_INSTRUCTIONS_QUERY');
 
         const modeInstructions = {
             secure: secureInst,
             perf: perfInst,
+            test: testInst,
+            query: queryInst,
             default: defaultInst
         };
 
@@ -66,10 +70,11 @@ function loadPrompts(mode) {
         
         return systemPromptTemplate
             .replace('{{mode}}', mode)
-            .replace('{{modeInstructions}}', inst);
+            .replace('{{modeInstructions}}', inst)
+            .replace('{{userQuery}}', userQuery);
     } catch (e) {
         console.error(`[Error] Failed to load prompts from ${skillPath}: ${e.message}`);
-        return `Perform a code review for mode: ${mode}. Return JSON.`;
+        return `Perform a code review for mode: ${mode}. Return JSON with "general_answer" and "comments".`;
     }
 }
 
@@ -107,11 +112,28 @@ async function manageReaction(action) {
 }
 
 /**
- * Parses the review mode from the comment body.
+ * Parses the review mode and user query from the comment body.
  */
 function getReviewMode() {
-    const modeMatch = COMMENT_BODY.match(/\/ai review\s+(\w+)/);
-    return modeMatch ? modeMatch[1] : 'default';
+    if (COMMENT_BODY.includes('/ai add test')) return 'test';
+    
+    const reviewMatch = COMMENT_BODY.match(/\/ai review\s+(\w+)/);
+    if (reviewMatch) return reviewMatch[1];
+
+    // If it's just /ai followed by something that isn't build/review/add test
+    if (COMMENT_BODY.match(/\/ai\s+(?!build|review|add test)[\s\S]+/)) return 'query';
+    
+    return 'default';
+}
+
+function getUserQuery() {
+    const match = COMMENT_BODY.match(/\/ai\s+([\s\S]+)/);
+    if (!match) return '';
+    
+    let query = match[1].trim();
+    // Remove reserved words from the start if they exist (though regex above should handle it)
+    query = query.replace(/^(query|add test|review\s+\w+)\s*/i, '');
+    return query;
 }
 
 /**
@@ -152,9 +174,9 @@ async function getFileContent(path) {
 /**
  * Calls the Gemini API with the specified model to analyze the code.
  */
-async function analyzeWithGemini(diffData, priorityFilesContext, mode) {
+async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery = '') {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
-    const systemPrompt = loadPrompts(mode);
+    const systemPrompt = loadPrompts(mode, userQuery);
 
     const userPrompt = `
 PR Diff Data:
@@ -162,7 +184,7 @@ ${diffData}
 
 ${priorityFilesContext ? `Full Context for Priority Files:\n${priorityFilesContext}` : ''}
 
-Analyze the changes and provide your review in the specified JSON format.
+Analyze the changes and provide your response in the specified JSON format.
 `;
 
     console.log(`[AI] Sending request to Gemini (${MODEL_NAME})...`);
@@ -175,11 +197,6 @@ Analyze the changes and provide your review in the specified JSON format.
         }
     };
 
-    console.log(`[AI] Request URL: ${url}`);
-    console.log(`[AI] Payload info: contents.length=${payload.contents.length}, parts.length=${payload.contents[0].parts.length}`);
-    console.log(`[AI] System Prompt preview: ${systemPrompt.substring(0, 100)}...`);
-    console.log(`[AI] User Prompt length: ${userPrompt.length} chars`);
-    
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 180000);
 
@@ -196,9 +213,6 @@ Analyze the changes and provide your review in the specified JSON format.
         });
         clearTimeout(timeoutId);
 
-        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-        console.log(`[AI] Response received in ${duration}s. Status: ${response.status}`);
-
         if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`Gemini API error (${response.status}): ${errorText}`);
@@ -206,44 +220,34 @@ Analyze the changes and provide your review in the specified JSON format.
 
         const result = await response.json();
         if (!result.candidates || !result.candidates[0].content) {
-            console.error("[AI] Error: Empty response from model. Result:", JSON.stringify(result));
-            return [];
+            console.error("[AI] Error: Empty response from model.");
+            return { general_answer: "I encountered an internal error and could not generate a response.", comments: [] };
         }
         
         let text = result.candidates[0].content.parts[0].text.trim();
-        console.log(`[AI] Raw output length: ${text.length} chars`);
-        
-        // Cleanup if the model ignored instructions and added markdown blocks
         text = text.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
 
         try {
-            if (!text || text === "[]") {
-                console.log("[AI] Model returned no issues.");
-                return [];
+            if (!text || text === "[]") return { general_answer: "", comments: [] };
+            
+            // If it's a valid JSON object with the new structure
+            if (text.startsWith('{')) {
+                return JSON.parse(text);
             }
             
+            // Backward compatibility or fallback for array-only responses
             if (text.startsWith('[')) {
-                const parsed = JSON.parse(text);
-                console.log(`[AI] Successfully parsed ${parsed.length} review items.`);
-                return parsed;
+                return { general_answer: "", comments: JSON.parse(text) };
             }
             
-            if (text.toLowerCase().includes("no issues") || text.toLowerCase().includes("looks good")) {
-                console.log("[AI] Plain text response indicates no issues.");
-                return [];
-            }
-
-            console.warn("[AI] Unexpected text response format. Snapshot:", text.substring(0, 200));
-            return [];
+            // Handle plain text
+            return { general_answer: text, comments: [] };
         } catch (e) {
-            console.error("[AI] Failed to parse JSON. Raw output snapshot:");
-            console.error(text.substring(0, 500));
-            return [];
+            console.error("[AI] Failed to parse JSON. Raw output snapshot:", text.substring(0, 500));
+            return { general_answer: "Failed to parse the AI response.", comments: [] };
         }
     } catch (e) {
-        if (e.name === 'AbortError') {
-            throw new Error(`[AI] Request timed out after 180s`);
-        }
+        if (e.name === 'AbortError') throw new Error(`[AI] Request timed out after 180s`);
         throw e;
     }
 }
@@ -253,87 +257,70 @@ Analyze the changes and provide your review in the specified JSON format.
  */
 async function main() {
     const mode = getReviewMode();
-    console.log(`On-Demand Review started. Mode: ${mode}`);
+    const userQuery = mode === 'query' ? getUserQuery() : '';
+    
+    console.log(`On-Demand Assistant started. Mode: ${mode}`);
+    if (userQuery) console.log(`[Config] User Query: ${userQuery}`);
 
     await manageReaction('add');
 
     try {
         const files = await fetchPRFiles();
         if (files.length === 0) {
-            console.log("[Process] No relevant files found for review.");
+            console.log("[Process] No relevant files found.");
             return;
         }
-        console.log(`[Process] Found ${files.length} files to analyze.`);
 
         let diffData = "";
         let priorityFilesContext = "";
 
         for (const file of files) {
-            console.log(`[Process] Adding file: ${file.filename} (+${file.additions}/-${file.deletions})`);
             diffData += `--- File: ${file.filename} ---\n${file.patch}\n\n`;
-            
             const isCore = file.filename === 'src/app.js' || file.filename.startsWith('src/core/');
             const isComplex = (file.additions + file.deletions) > 100;
-
             if (isCore || isComplex) {
-                console.log(`[Process] Priority file detected, fetching full content: ${file.filename}`);
                 const content = await getFileContent(file.filename);
-                if (content) {
-                    priorityFilesContext += `### FULL CONTENT OF ${file.filename} ###\n${content}\n\n`;
-                }
+                if (content) priorityFilesContext += `### FULL CONTENT OF ${file.filename} ###\n${content}\n\n`;
             }
         }
 
-        const reviewItems = await analyzeWithGemini(diffData, priorityFilesContext, mode);
+        const result = await analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery);
+        const reviewItems = result.comments || [];
+        const generalAnswer = result.general_answer || "";
 
-        if (!Array.isArray(reviewItems) || reviewItems.length === 0) {
-            console.log("[Process] No issues found. Posting positive review...");
+        if (reviewItems.length === 0 && !generalAnswer) {
+            console.log("[Process] No results to post.");
             await octokit.pulls.createReview({
-                owner,
-                repo,
-                pull_number: PR_NUMBER,
-                event: 'COMMENT',
-                body: `✅ **Code Review** completed.\n\nNo significant issues were found. The code looks good! 🚀`
+                owner, repo, pull_number: PR_NUMBER, event: 'COMMENT',
+                body: `✅ **AI Assistant** finished. No issues found and no specific answer generated.`
             });
             return;
         }
 
-        console.log(`[Process] Preparing to post ${reviewItems.length} comments...`);
-
         const prFiles = new Set(files.map(f => f.filename));
         const comments = reviewItems.map(item => {
-            if (!prFiles.has(item.file)) {
-                console.warn(`[Warning] AI suggested comment for file not in PR: ${item.file}`);
-                return null;
-            }
+            if (!prFiles.has(item.file)) return null;
             let body = item.comment;
-            if (item.suggestion) {
-                body += `\n\n\`\`\`suggestion\n${item.suggestion}\n\`\`\``;
-            }
-            return {
-                path: item.file,
-                line: parseInt(item.line),
-                body: body
-            };
+            if (item.suggestion) body += `\n\n\`\`\`suggestion\n${item.suggestion}\n\`\`\``;
+            return { path: item.file, line: parseInt(item.line), body: body };
         }).filter(c => c !== null && !isNaN(c.line));
 
-        if (comments.length === 0) {
-            console.log("[Process] No valid comments to post after validation.");
-            return;
-        }
+        let finalBody = `### AI Assistant: ${mode.toUpperCase()}\n\n`;
+        if (generalAnswer) finalBody += `${generalAnswer}\n\n`;
+        finalBody += `*Using ${MODEL_NAME}*`;
 
         await octokit.pulls.createReview({
             owner,
             repo,
             pull_number: PR_NUMBER,
             event: 'COMMENT',
-            comments: comments,
-            body: `Smart Code Review completed in **${mode}** mode using ${MODEL_NAME}.`
+            comments: comments.length > 0 ? comments : undefined,
+            body: finalBody
         });
 
-        console.log("[Process] Review successfully posted to GitHub.");
+        console.log("[Process] Response successfully posted to GitHub.");
     } catch (err) {
-        console.error("Fatal error during review:", err);
+        console.error("Fatal error:", err);
         throw err;
     } finally {
         await manageReaction('remove');

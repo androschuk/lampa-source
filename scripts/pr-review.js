@@ -242,8 +242,12 @@ Analyze the changes and provide your response in the specified JSON format.
                 if (Array.isArray(parsed)) return { general_answer: "", comments: parsed };
                 return parsed;
             } catch (e) {
-                console.error("[AI] Failed to parse extracted JSON block.");
+                console.error("[AI] Failed to parse extracted JSON block. Error:", e.message);
+                console.error("[AI] Extracted block snapshot (first 500 chars):");
+                console.error(jsonContent.substring(0, 500));
             }
+        } else {
+            console.warn("[AI] No JSON structure ({ or [) found in the response.");
         }
 
         // Fallback to text analysis if no JSON found

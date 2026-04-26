@@ -37,7 +37,7 @@ jobs:
           COMMENT_ID: ${{ github.event.comment.id }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           REPO_FULL_NAME: ${{ github.repository }}
-          IS_REVIEW_COMMENT: ${{ github.event.pull_request_review_id != '' || github.event.comment.pull_request_review_id != '' }}
+          IS_REVIEW_COMMENT: ${{ github.event_name == 'pull_request_review_comment' }}
         run: node scripts/pr-review.js
 
   # Job for On-Demand Build

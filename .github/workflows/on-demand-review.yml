@@ -7,7 +7,7 @@ on:
 jobs:
   # Job for Code Review
   review:
-    if: github.event.comment.user.login == 'androschuk' && contains(github.event.comment.body, '@bot review') && github.event.issue.pull_request
+    if: github.event.comment.user.login == 'androschuk' && contains(github.event.comment.body, '/ai review') && github.event.issue.pull_request
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -40,7 +40,7 @@ jobs:
 
   # Job for On-Demand Build
   build:
-    if: github.event.comment.user.login == 'androschuk' && contains(github.event.comment.body, '@bot build') && github.event.issue.pull_request
+    if: github.event.comment.user.login == 'androschuk' && contains(github.event.comment.body, '/ai build') && github.event.issue.pull_request
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

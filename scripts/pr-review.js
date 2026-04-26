@@ -7,9 +7,10 @@ import path from 'path';
 /**
  * On-Demand Smart Code Review Script
  * 
- * This script is triggered by a GitHub Action when a comment '@bot review [mode]' is made on a PR.
+ * This script is triggered by a GitHub Action when a comment '/ai review [mode]' is made on a PR.
  * It analyzes the PR changes using the gemma-4-31b-it model and posts inline review comments.
  */
+
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -110,7 +111,7 @@ async function manageReaction(action) {
  * Parses the review mode from the comment body.
  */
 function getReviewMode() {
-    const modeMatch = COMMENT_BODY.match(/@bot review\s+(\w+)/);
+    const modeMatch = COMMENT_BODY.match(/\/ai review\s+(\w+)/);
     return modeMatch ? modeMatch[1] : 'default';
 }
 
@@ -296,3 +297,4 @@ main().catch(err => {
     console.error("Fatal error:", err);
     process.exit(1);
 });
+);

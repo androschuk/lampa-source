@@ -8,7 +8,7 @@ import path from 'path';
  * On-Demand Smart Code Review Script
  * 
  * This script is triggered by a GitHub Action when a comment '/ai review [mode]' is made on a PR.
- * It analyzes the PR changes using the gemma-4-31b-it model and posts inline review comments.
+ * It analyzes the PR changes using a Gemini model and posts inline review comments.
  */
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -164,59 +164,66 @@ Analyze the changes and provide your review in the specified JSON format.
 `;
 
     console.log(`[AI] Sending request to Gemini (${MODEL_NAME})...`);
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'x-goog-api-key': GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-            contents: [{
-                parts: [{ text: systemPrompt + "\n\n" + userPrompt }]
-            }],
-            generationConfig: {
-                temperature: 0.1,
-            }
-        })
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gemini API error (${response.status}): ${errorText}`);
-    }
-
-    const result = await response.json();
-    if (!result.candidates || !result.candidates[0].content) {
-        console.error("[AI] Error: Empty response from model");
-        return [];
-    }
     
-    let text = result.candidates[0].content.parts[0].text.trim();
-    
-    // Cleanup if the model ignored instructions and added markdown blocks
-    text = text.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
 
     try {
-        // If the model returned an empty string or "[]", it's an empty array
-        if (!text || text === "[]") return [];
-        
-        // If the response starts with [, try to parse it
-        if (text.startsWith('[')) {
-            return JSON.parse(text);
-        }
-        
-        // If it's a plain text response saying "no issues", return empty array
-        if (text.toLowerCase().includes("no issues") || text.toLowerCase().includes("looks good")) {
-            console.log("[AI] Plain text response indicates no issues.");
-            return [];
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'x-goog-api-key': GEMINI_API_KEY
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{ text: systemPrompt + "\n\n" + userPrompt }]
+                }],
+                generationConfig: {
+                    temperature: 0.1,
+                }
+            }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Gemini API error (${response.status}): ${errorText}`);
         }
 
-        console.warn("[AI] Unexpected text response, returning empty array.");
-        return [];
+        const result = await response.json();
+        if (!result.candidates || !result.candidates[0].content) {
+            console.error("[AI] Error: Empty response from model");
+            return [];
+        }
+        
+        let text = result.candidates[0].content.parts[0].text.trim();
+        
+        // Cleanup if the model ignored instructions and added markdown blocks
+        text = text.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+
+        try {
+            if (!text || text === "[]") return [];
+            if (text.startsWith('[')) return JSON.parse(text);
+            
+            if (text.toLowerCase().includes("no issues") || text.toLowerCase().includes("looks good")) {
+                console.log("[AI] Plain text response indicates no issues.");
+                return [];
+            }
+
+            console.warn("[AI] Unexpected text response, returning empty array.");
+            return [];
+        } catch (e) {
+            console.error("[AI] Failed to parse JSON. Raw output snapshot:");
+            console.error(text.substring(0, 500));
+            return [];
+        }
     } catch (e) {
-        console.error("[AI] Failed to parse JSON. Raw output snapshot:");
-        console.error(text.substring(0, 500));
-        return [];
+        if (e.name === 'AbortError') {
+            throw new Error(`[AI] Request timed out after 120s`);
+        }
+        throw e;
     }
 }
 

@@ -44,7 +44,7 @@ function loadPrompts(mode) {
         const content = fs.readFileSync(skillPath, 'utf-8');
         
         const extractSection = (tag) => {
-            const regex = new RegExp(`# ${tag}\\n([\\s\\S]*?)(?=\\n#|$)`);
+            const regex = new RegExp(`# ${tag}\\r?\\n([\\s\\S]*?)(?=\\r?\\n#|$)`);
             const match = content.match(regex);
             return match ? match[1].trim() : '';
         };

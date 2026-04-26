@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { Octokit } from "@octokit/rest";
+import fs from 'fs';
+import path from 'path';
 
 /**
  * On-Demand Smart Code Review Script
@@ -15,6 +17,7 @@ const PR_NUMBER = parseInt(process.env.PR_NUMBER);
 const REPO_FULL_NAME = process.env.REPO_FULL_NAME;
 const COMMENT_BODY = process.env.COMMENT_BODY || '';
 const COMMENT_ID = process.env.COMMENT_ID;
+const MODEL_NAME = "gemma-4-31b-it";
 
 if (!GITHUB_TOKEN || !GEMINI_API_KEY || !PR_NUMBER || !REPO_FULL_NAME || !COMMENT_ID) {
     console.error("Error: Missing required environment variables (GITHUB_TOKEN, GEMINI_API_KEY, PR_NUMBER, REPO_FULL_NAME, COMMENT_ID)");
@@ -31,6 +34,43 @@ const IGNORED_PATHS = [
     'dist/',
     'build/'
 ];
+
+/**
+ * Loads the system prompt and instructions from the skill file.
+ */
+function loadPrompts(mode) {
+    const skillPath = path.join(process.cwd(), '.gemini/skills/code-review-prompts/SKILL.md');
+    try {
+        const content = fs.readFileSync(skillPath, 'utf-8');
+        
+        const extractSection = (tag) => {
+            const regex = new RegExp(`# ${tag}\\n([\\s\\S]*?)(?=\\n#|$)`);
+            const match = content.match(regex);
+            return match ? match[1].trim() : '';
+        };
+
+        const systemPromptTemplate = extractSection('SYSTEM_PROMPT');
+        const secureInst = extractSection('MODE_INSTRUCTIONS_SECURE');
+        const perfInst = extractSection('MODE_INSTRUCTIONS_PERF');
+        const defaultInst = extractSection('MODE_INSTRUCTIONS_DEFAULT');
+
+        const modeInstructions = {
+            secure: secureInst,
+            perf: perfInst,
+            default: defaultInst
+        };
+
+        const inst = modeInstructions[mode] || modeInstructions.default;
+        
+        return systemPromptTemplate
+            .replace('{{mode}}', mode)
+            .replace('{{modeInstructions}}', inst);
+    } catch (e) {
+        console.error(`Error loading prompts from ${skillPath}: ${e.message}`);
+        // Fallback to hardcoded if file is missing (minimal version)
+        return `Perform a code review for mode: ${mode}. Return JSON.`;
+    }
+}
 
 /**
  * Manages the 'eyes' reaction on the triggering comment.
@@ -110,32 +150,11 @@ async function getFileContent(path) {
 }
 
 /**
- * Calls the Gemini API with the gemma-4-31b-it model to analyze the code.
+ * Calls the Gemini API with the specified model to analyze the code.
  */
 async function analyzeWithGemini(diffData, priorityFilesContext, mode) {
-    const model = "gemma-4-31b-it";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-
-    const modeInstructions = {
-        secure: "Focus specifically on security vulnerabilities like XSS, data leaks, insecure API usage, and potential injection points.",
-        perf: "Focus specifically on performance bottlenecks, memory leaks, inefficient loops, and expensive DOM operations.",
-        default: "Focus on general logic errors, style consistency, potential bugs, and readability."
-    };
-
-    const systemPrompt = `You are an expert senior software engineer performing a code review for the Lampa project (a modular TV/Web content viewer).
-Your goal is to provide surgical inline comments and automated suggestions.
-
-CRITICAL INSTRUCTIONS:
-1. Return ONLY a raw JSON array of objects.
-2. NO conversational text, NO markdown code blocks, NO preamble, NO postamble.
-3. JSON Structure: [{"file": "path/to/file.js", "line": 42, "comment": "...", "suggestion": "..."}]
-4. 'file' must match the original filename exactly.
-5. 'line' must be the line number in the NEW version of the file where the comment should appear.
-6. 'suggestion' is optional. If provided, it should be the exact code to replace the line(s). Use it for minor fixes.
-7. Only comment on significant issues. If the code is fine, return an empty array [].
-8. All suggestions MUST be ES2017+ compatible (TV browser constraints).
-9. Review Mode: ${mode}. ${modeInstructions[mode] || modeInstructions.default}
-`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
+    const systemPrompt = loadPrompts(mode);
 
     const userPrompt = `
 PR Diff Data:
@@ -146,10 +165,13 @@ ${priorityFilesContext ? `Full Context for Priority Files:\n${priorityFilesConte
 Analyze the changes and provide your review in the specified JSON format.
 `;
 
-    console.log(`Analyzing changes with ${model}...`);
+    console.log(`Analyzing changes with ${MODEL_NAME}...`);
     const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'x-goog-api-key': GEMINI_API_KEY
+        },
         body: JSON.stringify({
             contents: [{
                 parts: [{ text: systemPrompt + "\n\n" + userPrompt }]
@@ -233,7 +255,12 @@ async function main() {
 
         console.log(`Gemini found ${reviewItems.length} issues. Preparing review...`);
 
+        const prFiles = new Set(files.map(f => f.filename));
         const comments = reviewItems.map(item => {
+            if (!prFiles.has(item.file)) {
+                console.warn(`Warning: AI suggested comment for file not in PR: ${item.file}`);
+                return null;
+            }
             let body = item.comment;
             if (item.suggestion) {
                 body += `\n\n\`\`\`suggestion\n${item.suggestion}\n\`\`\``;
@@ -243,7 +270,7 @@ async function main() {
                 line: parseInt(item.line),
                 body: body
             };
-        }).filter(c => !isNaN(c.line));
+        }).filter(c => c !== null && !isNaN(c.line));
 
         if (comments.length === 0) {
             console.log("No valid comments to post.");
@@ -256,7 +283,7 @@ async function main() {
             pull_number: PR_NUMBER,
             event: 'COMMENT',
             comments: comments,
-            body: `Smart Code Review completed in **${mode}** mode using gemma-4-31b-it.`
+            body: `Smart Code Review completed in **${mode}** mode using ${MODEL_NAME}.`
         });
 
         console.log("Review successfully posted to GitHub.");

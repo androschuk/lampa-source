@@ -3,11 +3,13 @@ name: "AI Assistants (Review & Build)"
 on:
   issue_comment:
     types: [created]
+  pull_request_review_comment:
+    types: [created]
 
 jobs:
-  # Job for Code Review
+  # Job for Code Review & AI Assistance
   review:
-    if: github.event.comment.user.login == 'androschuk' && contains(github.event.comment.body, '/ai ') && !contains(github.event.comment.body, '/ai build') && github.event.issue.pull_request
+    if: github.event.comment.user.login == 'androschuk' && contains(github.event.comment.body, '/ai ') && !contains(github.event.comment.body, '/ai build')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -26,16 +28,16 @@ jobs:
       - name: Install dependencies
         run: |
           npm install @octokit/rest
-          npm install -g @google/gemini-cli
 
-      - name: Run Review Script
+      - name: Run Assistant Script
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_ID: ${{ github.event.comment.id }}
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           REPO_FULL_NAME: ${{ github.repository }}
+          IS_REVIEW_COMMENT: ${{ github.event.pull_request_review_id != '' || github.event.comment.pull_request_review_id != '' }}
         run: node scripts/pr-review.js
 
   # Job for On-Demand Build

@@ -18,6 +18,7 @@ const REPO_FULL_NAME = process.env.REPO_FULL_NAME;
 const COMMENT_BODY = process.env.COMMENT_BODY || '';
 const COMMENT_ID = process.env.COMMENT_ID;
 const MODEL_NAME = "gemma-4-31b-it";
+const IS_REVIEW_COMMENT = process.env.IS_REVIEW_COMMENT === 'true';
 
 if (!GITHUB_TOKEN || !GEMINI_API_KEY || !PR_NUMBER || !REPO_FULL_NAME || !COMMENT_ID) {
     console.error("Error: Missing required environment variables (GITHUB_TOKEN, GEMINI_API_KEY, PR_NUMBER, REPO_FULL_NAME, COMMENT_ID)");
@@ -40,7 +41,6 @@ const IGNORED_PATHS = [
  */
 function loadPrompts(mode, userQuery = '') {
     const skillPath = path.join(process.cwd(), '.gemini/skills/code-review-prompts/SKILL.md');
-    console.log(`[Config] Loading prompts from: ${skillPath}`);
     try {
         const content = fs.readFileSync(skillPath, 'utf-8');
         
@@ -66,14 +66,13 @@ function loadPrompts(mode, userQuery = '') {
         };
 
         const inst = modeInstructions[mode] || modeInstructions.default;
-        console.log(`[Config] Using review mode: ${mode}`);
         
         return systemPromptTemplate
             .replace('{{mode}}', mode)
             .replace('{{modeInstructions}}', inst)
             .replace('{{userQuery}}', userQuery);
     } catch (e) {
-        console.error(`[Error] Failed to load prompts from ${skillPath}: ${e.message}`);
+        console.error(`[Error] Failed to load prompts: ${e.message}`);
         return `Perform a code review for mode: ${mode}. Return JSON with "general_answer" and "comments".`;
     }
 }
@@ -120,7 +119,6 @@ function getReviewMode() {
     const reviewMatch = COMMENT_BODY.match(/\/ai review\s+(\w+)/);
     if (reviewMatch) return reviewMatch[1];
 
-    // If it's just /ai followed by something that isn't build/review/add test
     if (COMMENT_BODY.match(/\/ai\s+(?!build|review|add test)[\s\S]+/)) return 'query';
     
     return 'default';
@@ -129,9 +127,7 @@ function getReviewMode() {
 function getUserQuery() {
     const match = COMMENT_BODY.match(/\/ai\s+([\s\S]+)/);
     if (!match) return '';
-    
     let query = match[1].trim();
-    // Remove reserved words from the start if they exist (though regex above should handle it)
     query = query.replace(/^(query|add test|review\s+\w+)\s*/i, '');
     return query;
 }
@@ -140,7 +136,6 @@ function getUserQuery() {
  * Fetches the list of files in the PR and their patches.
  */
 async function fetchPRFiles() {
-    console.log(`[Process] Fetching files for PR #${PR_NUMBER}...`);
     const { data: files } = await octokit.pulls.listFiles({
         owner,
         repo,
@@ -166,7 +161,6 @@ async function getFileContent(path) {
         });
         return Buffer.from(data.content, 'base64').toString('utf-8');
     } catch (e) {
-        console.warn(`[Warning] Failed to fetch full content for ${path}: ${e.message}`);
         return null;
     }
 }
@@ -201,7 +195,6 @@ Analyze the changes and provide your response in the specified JSON format.
     const timeoutId = setTimeout(() => controller.abort(), 180000);
 
     try {
-        const startTime = Date.now();
         const response = await fetch(url, {
             method: 'POST',
             headers: { 
@@ -220,7 +213,6 @@ Analyze the changes and provide your response in the specified JSON format.
 
         const result = await response.json();
         if (!result.candidates || !result.candidates[0].content) {
-            console.error("[AI] Error: Empty response from model.");
             return { general_answer: "I encountered an internal error and could not generate a response.", comments: [] };
         }
         
@@ -229,18 +221,8 @@ Analyze the changes and provide your response in the specified JSON format.
 
         try {
             if (!text || text === "[]") return { general_answer: "", comments: [] };
-            
-            // If it's a valid JSON object with the new structure
-            if (text.startsWith('{')) {
-                return JSON.parse(text);
-            }
-            
-            // Backward compatibility or fallback for array-only responses
-            if (text.startsWith('[')) {
-                return { general_answer: "", comments: JSON.parse(text) };
-            }
-            
-            // Handle plain text
+            if (text.startsWith('{')) return JSON.parse(text);
+            if (text.startsWith('[')) return { general_answer: "", comments: JSON.parse(text) };
             return { general_answer: text, comments: [] };
         } catch (e) {
             console.error("[AI] Failed to parse JSON. Raw output snapshot:", text.substring(0, 500));
@@ -260,16 +242,11 @@ async function main() {
     const userQuery = mode === 'query' ? getUserQuery() : '';
     
     console.log(`On-Demand Assistant started. Mode: ${mode}`);
-    if (userQuery) console.log(`[Config] User Query: ${userQuery}`);
-
     await manageReaction('add');
 
     try {
         const files = await fetchPRFiles();
-        if (files.length === 0) {
-            console.log("[Process] No relevant files found.");
-            return;
-        }
+        if (files.length === 0) return;
 
         let diffData = "";
         let priorityFilesContext = "";
@@ -289,11 +266,12 @@ async function main() {
         const generalAnswer = result.general_answer || "";
 
         if (reviewItems.length === 0 && !generalAnswer) {
-            console.log("[Process] No results to post.");
-            await octokit.pulls.createReview({
-                owner, repo, pull_number: PR_NUMBER, event: 'COMMENT',
-                body: `✅ **AI Assistant** finished. No issues found and no specific answer generated.`
-            });
+            const body = `✅ **AI Assistant** finished. No issues found.`;
+            if (IS_REVIEW_COMMENT) {
+                await octokit.pulls.createReplyForReviewComment({ owner, repo, pull_number: PR_NUMBER, comment_id: parseInt(COMMENT_ID), body });
+            } else {
+                await octokit.pulls.createReview({ owner, repo, pull_number: PR_NUMBER, event: 'COMMENT', body });
+            }
             return;
         }
 
@@ -309,14 +287,19 @@ async function main() {
         if (generalAnswer) finalBody += `${generalAnswer}\n\n`;
         finalBody += `*Using ${MODEL_NAME}*`;
 
-        await octokit.pulls.createReview({
-            owner,
-            repo,
-            pull_number: PR_NUMBER,
-            event: 'COMMENT',
-            comments: comments.length > 0 ? comments : undefined,
-            body: finalBody
-        });
+        if (IS_REVIEW_COMMENT) {
+            console.log("[Process] Replying to review comment...");
+            await octokit.pulls.createReplyForReviewComment({
+                owner, repo, pull_number: PR_NUMBER, comment_id: parseInt(COMMENT_ID),
+                body: finalBody + (comments.length > 0 ? "\n\n*(See inline suggestions below)*" : "")
+            });
+            if (comments.length > 0) {
+                await octokit.pulls.createReview({ owner, repo, pull_number: PR_NUMBER, event: 'COMMENT', comments, body: `Specific suggestions based on your query.` });
+            }
+        } else {
+            console.log("[Process] Posting to PR timeline...");
+            await octokit.pulls.createReview({ owner, repo, pull_number: PR_NUMBER, event: 'COMMENT', comments: comments.length > 0 ? comments : undefined, body: finalBody });
+        }
 
         console.log("[Process] Response successfully posted to GitHub.");
     } catch (err) {

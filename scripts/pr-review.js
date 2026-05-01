@@ -91,6 +91,9 @@ async function manageReaction(action) {
             const { data: reactions } = await octokit.reactions.listForIssueComment({ owner, repo, comment_id: COMMENT_ID });
             const eye = reactions.find(r => r.content === 'eyes' && r.user.login.includes('github-actions'));
             if (eye) await octokit.reactions.deleteForIssueComment({ owner, repo, comment_id: COMMENT_ID, reaction_id: eye.id });
+        } else if (action === 'complete') {
+            await manageReaction('remove');
+            await octokit.reactions.createForIssueComment({ owner, repo, comment_id: COMMENT_ID, content: '+1' });
         }
     } catch (e) {
         console.warn(`Warning: Reaction ${action} failed: ${e.message}`);
@@ -138,7 +141,7 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
         },
         contents: [{ 
             role: "user",
-            parts: [{ text: "PR Diff Data:\n" + diffData + "\n\n" + (priorityFilesContext ? "Context:\n" + priorityFilesContext : "") }] 
+            parts: [{ text: "SYSTEM RULE: Return ONLY JSON.\n\nPR Diff Data:\n" + diffData + "\n\n" + (priorityFilesContext ? "Context:\n" + priorityFilesContext : "") + "\n\nREMINDER: Output MUST be valid JSON only." }] 
         }],
         generationConfig: { 
             temperature: 0.1,
@@ -168,28 +171,40 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
         
         let text = result.candidates[0].content.parts[0].text.trim();
         
-        try {
-            const parsed = JSON.parse(text);
-            return Array.isArray(parsed) ? { general_answer: "", comments: parsed } : parsed;
-        } catch (e) { 
-            console.error("[AI] JSON Parse failed. Trying fallback extraction...");
-            const findJSON = (str) => {
-                let cleaned = str.replace(/```json/g, '').replace(/```/g, '');
-                const matches = cleaned.match(/\{[\s\S]*"general_answer"[\s\S]*\}/g) || 
-                                cleaned.match(/\{[\s\S]*"comments"[\s\S]*\}/g) ||
-                                cleaned.match(/\[[\s\S]*"file"[\s\S]*"suggestion"[\s\S]*\]/g);
-                if (matches) {
-                    const candidate = matches.reduce((a, b) => a.length > b.length ? a : b);
-                    const start = candidate.indexOf('{');
-                    const end = candidate.lastIndexOf('}');
-                    if (start !== -1 && end !== -1) return candidate.substring(start, end + 1);
+        // Robust JSON extraction
+        const extractJSON = (str) => {
+            try {
+                return JSON.parse(str);
+            } catch (e) {
+                // Try to find JSON in markdown blocks or just somewhere in the text
+                const jsonMatch = str.match(/\{[\s\S]*\}/) || str.match(/\[[\s\S]*\]/);
+                if (jsonMatch) {
+                    try {
+                        return JSON.parse(jsonMatch[0]);
+                    } catch (e2) {
+                        // Try to clean common issues
+                        let cleaned = jsonMatch[0]
+                            .replace(/```json/g, '')
+                            .replace(/```/g, '')
+                            .trim();
+                        try {
+                            return JSON.parse(cleaned);
+                        } catch (e3) {
+                            return null;
+                        }
+                    }
                 }
                 return null;
-            };
-            const jsonContent = findJSON(text);
-            if (jsonContent) return JSON.parse(jsonContent);
-            return { general_answer: text, comments: [] };
+            }
+        };
+
+        const parsed = extractJSON(text);
+        if (parsed) {
+            return Array.isArray(parsed) ? { general_answer: "", comments: parsed } : parsed;
         }
+
+        console.warn("[AI] Failed to parse JSON. Raw output:", text.substring(0, 500));
+        return { general_answer: text, comments: [] };
     } catch (e) {
         if (e.name === 'AbortError') throw new Error(`[AI] Timeout after 180s`);
         throw e;
@@ -207,6 +222,7 @@ async function main() {
         const files = await fetchPRFiles();
         if (files.length === 0) {
             console.log("No files to review.");
+            await manageReaction('complete');
             return;
         }
 
@@ -221,11 +237,15 @@ async function main() {
         }
 
         const result = await analyzeWithGemini(diffData, priorityContext, mode, userQuery);
+        
+        // Log AI's summary/reasoning to console instead of posting it
+        if (result.general_answer) {
+            console.log("[AI Reasoning]:", result.general_answer);
+        }
+
         const reviewItems = result.comments || [];
-        const generalAnswer = result.general_answer || "";
 
         if (mode === 'test' && reviewItems.length > 0) {
-            // ... (keep test logic same but use improved parsing)
             const createdFiles = [];
             for (const item of reviewItems) {
                 if (item.file && item.suggestion) {
@@ -245,6 +265,7 @@ async function main() {
                 } else {
                     await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body });
                 }
+                await manageReaction('complete');
                 return;
             }
         }
@@ -253,34 +274,32 @@ async function main() {
         const comments = reviewItems.map(item => {
             if (!prFiles.has(item.file)) return null;
             let body = item.comment;
-            if (item.suggestion) body += `\n\n\`\`\`suggestion\n${item.suggestion}\n\`\`\``;
+            if (item.suggestion) {
+                let suggestion = item.suggestion.trim();
+                if (!suggestion.startsWith('```')) {
+                    suggestion = `\`\`\`suggestion\n${suggestion}\n\`\`\``;
+                }
+                body += `\n\n${suggestion}`;
+            }
             return { path: item.file, line: parseInt(item.line), side: 'RIGHT', body: body };
         }).filter(c => c !== null && !isNaN(c.line) && c.line > 0);
 
-        let finalBody = generalAnswer;
-        if (!finalBody && comments.length === 0) finalBody = "No issues found.";
-        
-        if (IS_REVIEW_COMMENT) {
-            // If replying to a comment, we post the general answer as a reply
-            await octokit.pulls.createReplyForReviewComment({ owner, repo, pull_number: PR_NUMBER, comment_id: parseInt(COMMENT_ID), body: finalBody || "I've reviewed the code. See suggestions below." });
-            // And then post inline comments as a review
-            if (comments.length > 0) {
-                await octokit.pulls.createReview({ owner, repo, pull_number: PR_NUMBER, event: 'COMMENT', comments });
-            }
-        } else {
-            // New review
+        if (comments.length > 0) {
+            // Post ONLY inline comments, no general review body
             await octokit.pulls.createReview({ 
                 owner, 
                 repo, 
                 pull_number: PR_NUMBER, 
                 event: 'COMMENT', 
-                comments: comments.length > 0 ? comments : undefined, 
-                body: finalBody || undefined
+                comments
             });
+        } else {
+            console.log("No issues found, skipping review post.");
         }
+
+        await manageReaction('complete');
     } catch (err) {
         console.error("Fatal error:", err);
-    } finally {
         await manageReaction('remove');
     }
 }

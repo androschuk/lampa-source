@@ -58,7 +58,7 @@ function loadPrompts(mode, userQuery = '') {
             .replace('{{modeInstructions}}', inst)
             .replace('{{userQuery}}', userQuery);
     } catch (e) {
-        return `As a senior engineer, provide a code review for mode: ${mode}.`;
+        return `JSON-only review. Mode: ${mode}`;
     }
 }
 
@@ -81,17 +81,18 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
     const prompt = loadPrompts(mode, userQuery);
 
-    const mergedPrompt = `${prompt}\n\nTask: Return only a JSON object. No explanation, no planning, no bullet points. 
-JSON Schema: {"general_answer": "summary", "comments": [{"file": "path", "line": number, "comment": "text", "suggestion": "code"}]}
-
-Diff Data:
-${diffData}
-
-Return ONLY the JSON object now.`;
-
     const payload = {
-        contents: [{ role: "user", parts: [{ text: mergedPrompt }] }],
-        generationConfig: { temperature: 0.1 }
+        system_instruction: {
+            parts: [{ text: "You are a specialized tool that returns ONLY JSON objects. Never include any other text." }]
+        },
+        contents: [{ 
+            role: "user", 
+            parts: [{ text: `${prompt}\n\nDiff Data:\n${diffData}\n\nContext:\n${priorityFilesContext}` }] 
+        }],
+        generationConfig: { 
+            temperature: 0.1,
+            response_mime_type: "application/json"
+        }
     };
 
     const response = await fetch(url, {
@@ -100,35 +101,24 @@ Return ONLY the JSON object now.`;
         body: JSON.stringify(payload)
     });
 
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`API error: ${response.status} - ${err}`);
+    }
 
     const result = await response.json();
     if (!result.candidates) return { general_answer: "No response", comments: [] };
     
     const text = result.candidates[0].content.parts[0].text.trim();
     
-    const extractJSON = (str) => {
-        // 1. Try to find JSON in markdown blocks
-        const codeBlockMatch = str.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-        if (codeBlockMatch) {
-            try { return JSON.parse(codeBlockMatch[1]); } catch (e) {}
-        }
-
-        // 2. Try to find the first '{' and last '}'
-        const first = str.indexOf('{');
-        const last = str.lastIndexOf('}');
-        if (first !== -1 && last !== -1 && last > first) {
-            const candidate = str.substring(first, last + 1);
-            try { return JSON.parse(candidate); } catch (e) {}
-        }
-        return null;
-    };
-
-    const parsed = extractJSON(text);
-    if (parsed) return parsed;
-
-    console.log("[DEBUG] Raw AI Output (Failed to parse):", text);
-    return { general_answer: "Parsing failed", comments: [] };
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        // Fallback for messy output
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+        throw new Error("Invalid JSON returned by AI");
+    }
 }
 
 async function main() {
@@ -164,7 +154,7 @@ async function main() {
                 const body = `✅ **AI Assistant**: Added tests: ${created.map(f => `\`${f}\``).join(', ')}`;
                 await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body });
             } else {
-                await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body: "❌ **AI Assistant**: No tests were generated. The model provided an invalid response format." });
+                await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body: "❌ **AI Assistant**: No tests were generated." });
             }
         } else {
             const prFiles = new Set(filteredFiles.map(f => f.filename));
@@ -182,6 +172,7 @@ async function main() {
         }
     } catch (err) {
         console.error(err);
+        await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body: `❌ **AI Assistant Error**: ${err.message}` });
     } finally {
         await manageReaction('complete');
     }

@@ -295,6 +295,12 @@ async function main() {
             });
         } else {
             console.log("No issues found in the JSON comments array.");
+            const body = "✅ **Code Review completed.**\nNo significant issues were found.";
+            if (IS_REVIEW_COMMENT) {
+                await octokit.pulls.createReplyForReviewComment({ owner, repo, pull_number: PR_NUMBER, comment_id: parseInt(COMMENT_ID), body });
+            } else {
+                await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body });
+            }
         }
 
         await manageReaction('complete');

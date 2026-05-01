@@ -141,7 +141,7 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
         },
         contents: [{ 
             role: "user",
-            parts: [{ text: "SYSTEM RULE: Return ONLY JSON.\n\nPR Diff Data:\n" + diffData + "\n\n" + (priorityFilesContext ? "Context:\n" + priorityFilesContext : "") + "\n\nREMINDER: Output MUST be valid JSON only." }] 
+            parts: [{ text: "CRITICAL: Return ONLY JSON object. No preamble, no thoughts, no explanation. Just JSON.\n\nPR Diff Data:\n" + diffData + "\n\n" + (priorityFilesContext ? "Context:\n" + priorityFilesContext : "") }] 
         }],
         generationConfig: { 
             temperature: 0.1,
@@ -171,39 +171,41 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
         
         let text = result.candidates[0].content.parts[0].text.trim();
         
-        // Robust JSON extraction
+        // Advanced JSON extraction: Find the most complete JSON object in the text
         const extractJSON = (str) => {
-            try {
-                return JSON.parse(str);
-            } catch (e) {
-                // Try to find JSON in markdown blocks or just somewhere in the text
-                const jsonMatch = str.match(/\{[\s\S]*\}/) || str.match(/\[[\s\S]*\]/);
-                if (jsonMatch) {
-                    try {
-                        return JSON.parse(jsonMatch[0]);
-                    } catch (e2) {
-                        // Try to clean common issues
-                        let cleaned = jsonMatch[0]
-                            .replace(/```json/g, '')
-                            .replace(/```/g, '')
-                            .trim();
+            const firstOpen = str.indexOf('{');
+            const lastClose = str.lastIndexOf('}');
+            if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+                const candidate = str.substring(firstOpen, lastClose + 1);
+                try {
+                    return JSON.parse(candidate);
+                } catch (e) {
+                    // If simple slice fails, try to find a valid JSON object by iterating backwards from the end
+                    let end = lastClose;
+                    while (end > firstOpen) {
                         try {
-                            return JSON.parse(cleaned);
-                        } catch (e3) {
-                            return null;
+                            const chunk = str.substring(firstOpen, end + 1);
+                            return JSON.parse(chunk);
+                        } catch (err) {
+                            end = str.lastIndexOf('}', end - 1);
                         }
                     }
                 }
-                return null;
             }
+            return null;
         };
 
         const parsed = extractJSON(text);
         if (parsed) {
+            // Log non-JSON parts as thoughts if they exist
+            const jsonStr = JSON.stringify(parsed);
+            if (text.length > jsonStr.length + 20) {
+                console.log("[AI Thoughts]:", text.replace(jsonStr, '').trim());
+            }
             return Array.isArray(parsed) ? { general_answer: "", comments: parsed } : parsed;
         }
 
-        console.warn("[AI] Failed to parse JSON. Raw output:", text.substring(0, 500));
+        console.warn("[AI] Failed to parse JSON. Raw output logged as general_answer.");
         return { general_answer: text, comments: [] };
     } catch (e) {
         if (e.name === 'AbortError') throw new Error(`[AI] Timeout after 180s`);
@@ -238,9 +240,8 @@ async function main() {
 
         const result = await analyzeWithGemini(diffData, priorityContext, mode, userQuery);
         
-        // Log AI's summary/reasoning to console instead of posting it
-        if (result.general_answer) {
-            console.log("[AI Reasoning]:", result.general_answer);
+        if (result.general_answer && result.general_answer !== "No issues found") {
+            console.log("[AI Reasoning/Summary]:", result.general_answer);
         }
 
         const reviewItems = result.comments || [];
@@ -285,7 +286,6 @@ async function main() {
         }).filter(c => c !== null && !isNaN(c.line) && c.line > 0);
 
         if (comments.length > 0) {
-            // Post ONLY inline comments, no general review body
             await octokit.pulls.createReview({ 
                 owner, 
                 repo, 
@@ -294,7 +294,7 @@ async function main() {
                 comments
             });
         } else {
-            console.log("No issues found, skipping review post.");
+            console.log("No issues found in the JSON comments array.");
         }
 
         await manageReaction('complete');

@@ -61,7 +61,7 @@ jobs:
           ref: refs/pull/${{ github.event.issue.number }}/head
 
       - name: Add Rocket Reaction
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             github.rest.reactions.createForIssueComment({
@@ -86,7 +86,7 @@ jobs:
 
       - name: Post Status Comment
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const status = '${{ job.status }}' === 'success' ? '✅ **Build & Tests Success**' : '❌ **Build or Tests Failed**';
@@ -100,7 +100,7 @@ jobs:
 
       - name: Remove Rocket Reaction
         if: always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { data: reactions } = await github.rest.reactions.listForIssueComment({

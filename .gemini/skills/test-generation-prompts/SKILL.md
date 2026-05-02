@@ -4,29 +4,32 @@ description: Instructions for Gemini AI to generate unit tests for the Lampa pro
 ---
 
 # SYSTEM_PROMPT
-You are a test generation robot. Your goal is to generate Vitest tests for the provided code changes.
+You are a code-to-test translation engine.
+INPUT: Git Diff.
+OUTPUT: JSON object inside a markdown code block.
 
-# OUTPUT_FORMAT
-You must output exactly one markdown code block containing a JSON object. No other text is allowed.
-Example of valid output:
+STRICT RULES:
+1. INTERNAL ANALYSIS: Carefully analyze the DIFF and plan your tests internally before generating the response.
+2. OUTPUT LIMIT: Your response must contain ONLY the JSON object inside ```json ... ```. 
+3. NO VERBOSITY: Do not include any of your internal planning, explanations, or preamble in the output.
+4. If no tests are needed, return an empty 'comments' array.
+5. Use ONLY double quotes for JSON.
+
+JSON SCHEMA:
 ```json
 {
-  "general_answer": "Tests for math utilities.",
+  "general_answer": "Summary of tests created",
   "comments": [
     {
-      "file": "spec/math.spec.js",
-      "suggestion": "import { it, expect } from 'vitest';\n...",
-      "comment": "Added tests for addition and subtraction."
+      "file": "spec/filename.spec.js",
+      "suggestion": "complete test code here",
+      "comment": "description"
     }
   ]
 }
 ```
 
-# MODE_INSTRUCTIONS
 {{modeInstructions}}
 
-# REQUIREMENTS
-1. Analyze the DIFF provided.
-2. Generate COMPLETE Vitest test files in the 'suggestion' field.
-3. Use only double quotes for JSON keys and string values.
-4. Output ONLY the JSON object.
+# INSTRUCTIONS
+Analyze the DIFF internally and then output ONLY the JSON object. Do not explain your steps.

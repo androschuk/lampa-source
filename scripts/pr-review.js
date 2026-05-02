@@ -50,13 +50,13 @@ function loadPrompts(mode, userQuery = '') {
             return match ? match[1].trim() : '';
         };
 
-        const systemPromptTemplate = extractSection('SYSTEM_PROMPT');
+        let sys = extractSection('SYSTEM_PROMPT');
         const inst = extractSection(mode === 'test' ? 'INSTRUCTIONS' : 'MODE_INSTRUCTIONS_DEFAULT');
+        const modeInst = extractSection(`MODE_INSTRUCTIONS_${mode.toUpperCase()}`) || extractSection('MODE_INSTRUCTIONS_DEFAULT');
         
-        return systemPromptTemplate
-            .replace('{{mode}}', mode)
-            .replace('{{modeInstructions}}', inst)
-            .replace('{{userQuery}}', userQuery);
+        return sys
+            .replace('{{modeInstructions}}', modeInst)
+            .replace('{{userQuery}}', userQuery) + '\n\n' + inst;
     } catch (e) {
         return `JSON-only review. Mode: ${mode}`;
     }
@@ -83,21 +83,18 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
 
     const payload = {
         system_instruction: {
-            parts: [{ text: "You are a specialized tool that returns ONLY JSON objects wrapped in markdown code blocks. Never include any other text." }]
+            parts: [{ text: "You are a robotic JSON generator. Perform internal analysis silently, then output ONLY the JSON object inside a markdown code block." }]
         },
         contents: [{ 
             role: "user", 
-            parts: [{ text: `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nCOMMAND: Analyze the data and return the JSON object wrapped in a markdown code block.\n\nJSON:\n\`\`\`json` }] 
+            parts: [{ text: `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nFINAL COMMAND: Analyze the data internally, then generate the JSON object NOW. NO TEXT OUTSIDE THE BLOCK.` }] 
         }],
         generationConfig: { 
-            temperature: 0.1,
-            response_mime_type: "application/json"
+            temperature: 0.1
         }
     };
 
     console.log("=== AI REQUEST PAYLOAD ===");
-    console.log(payload);
-    console.log("===");
     console.log(JSON.stringify(payload, null, 2));
     console.log("===");
 

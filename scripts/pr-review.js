@@ -6,7 +6,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 /**
- * AI Assistant Script for Lampa Project - Marker Parsing Version
+ * AI Assistant Script for Lampa Project - Robust Thought-Result Version
  */
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -51,7 +51,8 @@ function loadPrompts(mode, userQuery = '') {
         };
 
         let sys = extractSection('SYSTEM_PROMPT');
-        const modeInst = extractSection(`MODE_INSTRUCTIONS_${mode.toUpperCase()}`) || extractSection('MODE_INSTRUCTIONS_DEFAULT');
+        const modeKey = `MODE_INSTRUCTIONS_${mode.toUpperCase()}`;
+        const modeInst = extractSection(modeKey) || extractSection('MODE_INSTRUCTIONS_DEFAULT');
         
         return sys
             .replace('{{modeInstructions}}', modeInst)
@@ -87,7 +88,6 @@ function parseMarkerResponse(text, mode) {
     if (summaryMatch) result.general_answer = summaryMatch[1].trim();
 
     if (mode === 'test') {
-        // Extract Files for Test Generation
         const fileRegex = /\[FILE_START:\s*(.+?)\][\s\S]*?\[CONTENT_START\]([\s\S]*?)\[\/CONTENT_START\]/gi;
         let match;
         while ((match = fileRegex.exec(text)) !== null) {
@@ -98,7 +98,6 @@ function parseMarkerResponse(text, mode) {
             });
         }
     } else {
-        // Extract Comments for Code Review
         const commentRegex = /\[COMMENT_START\]([\s\S]*?)\[\/COMMENT_START\]/gi;
         let match;
         while ((match = commentRegex.exec(text)) !== null) {
@@ -113,7 +112,7 @@ function parseMarkerResponse(text, mode) {
                     file,
                     line: parseInt(line),
                     comment: msg || "🔍 Suggestion",
-                    suggestion: suggestion === 'null' ? null : suggestion
+                    suggestion: (suggestion === 'null' || !suggestion) ? null : suggestion
                 });
             }
         }
@@ -126,14 +125,17 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
     const prompt = loadPrompts(mode, userQuery);
 
-    const userText = `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nFINAL INSTRUCTION: Use the [MARKERS] defined above to wrap your results. You can explain your logic before the markers.`;
+    const userText = `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nCOMMAND: Follow the [THOUGHTS] -> [RESULT] sequence. Start now:\n\n[THOUGHTS]`;
 
     const payload = {
         contents: [{ role: "user", parts: [{ text: userText }] }],
-        generationConfig: { temperature: 0.2 }
+        generationConfig: { 
+            temperature: 0.0,
+            stopSequences: ["[/RESULT]"] 
+        }
     };
 
-    console.log("=== AI REQUEST (MARKER MODE) ===");
+    console.log("=== AI REQUEST (THOUGHT-RESULT MODE) ===");
     const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
@@ -148,22 +150,17 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const resJson = await response.json();
     if (!resJson.candidates || !resJson.candidates[0].content) return { general_answer: "No response", comments: [] };
     
-    const text = resJson.candidates[0].content.parts[0].text;
+    // Add the starting nudge back to the response
+    let text = "[THOUGHTS]" + resJson.candidates[0].content.parts[0].text;
+    if (!text.includes("[/RESULT]")) text += "[/RESULT]";
+
     console.log("=== AI FULL RESPONSE ===");
     console.log(text);
     
     const parsed = parseMarkerResponse(text, mode);
     
     if (parsed.comments.length === 0 && !parsed.general_answer) {
-        // Fallback: try parse as pure JSON if markers not found
-        try {
-            const firstBrace = text.indexOf('{');
-            const lastBrace = text.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1) {
-                return JSON.parse(text.substring(firstBrace, lastBrace + 1));
-            }
-        } catch (e) { }
-        throw new Error("Could not find results with markers in AI response.");
+        throw new Error("Could not extract results from AI response. Ensure markers [FILE_START], [CONTENT_START] are used.");
     }
 
     return parsed;

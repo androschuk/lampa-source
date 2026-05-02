@@ -6,7 +6,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 /**
- * AI Assistant Script for Lampa Project - Robust Version
+ * AI Assistant Script for Lampa Project - Marker Parsing Version
  */
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -57,8 +57,7 @@ function loadPrompts(mode, userQuery = '') {
             .replace('{{modeInstructions}}', modeInst)
             .replace('{{userQuery}}', userQuery);
     } catch (e) {
-        console.warn(`[Warning] Failed to load prompts from ${skillPath}: ${e.message}`);
-        return `Analyze this diff and return JSON review. Mode: ${mode}`;
+        return `Analyze this diff and return marked results. Mode: ${mode}`;
     }
 }
 
@@ -77,28 +76,64 @@ async function manageReaction(action) {
     } catch (e) { }
 }
 
+function parseMarkerResponse(text, mode) {
+    const result = {
+        general_answer: "",
+        comments: []
+    };
+
+    // Extract Summary
+    const summaryMatch = text.match(/\[GENERAL_SUMMARY\]([\s\S]*?)\[\/GENERAL_SUMMARY\]/i);
+    if (summaryMatch) result.general_answer = summaryMatch[1].trim();
+
+    if (mode === 'test') {
+        // Extract Files for Test Generation
+        const fileRegex = /\[FILE_START:\s*(.+?)\][\s\S]*?\[CONTENT_START\]([\s\S]*?)\[\/CONTENT_START\]/gi;
+        let match;
+        while ((match = fileRegex.exec(text)) !== null) {
+            result.comments.push({
+                file: match[1].trim(),
+                suggestion: match[2].trim(),
+                comment: "AI Generated Test"
+            });
+        }
+    } else {
+        // Extract Comments for Code Review
+        const commentRegex = /\[COMMENT_START\]([\s\S]*?)\[\/COMMENT_START\]/gi;
+        let match;
+        while ((match = commentRegex.exec(text)) !== null) {
+            const block = match[1];
+            const file = block.match(/FILE:\s*(.+)/i)?.[1]?.trim();
+            const line = block.match(/LINE:\s*(\d+)/i)?.[1]?.trim();
+            const msg = block.match(/TEXT:\s*(.+)/i)?.[1]?.trim();
+            const suggestion = block.match(/\[SUGGESTION_START\]([\s\S]*?)\[\/SUGGESTION_START\]/i)?.[1]?.trim();
+
+            if (file && line) {
+                result.comments.push({
+                    file,
+                    line: parseInt(line),
+                    comment: msg || "🔍 Suggestion",
+                    suggestion: suggestion === 'null' ? null : suggestion
+                });
+            }
+        }
+    }
+
+    return result;
+}
+
 async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery = '') {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
     const prompt = loadPrompts(mode, userQuery);
 
-    const userText = `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nFINAL INSTRUCTION: Output ONLY a valid JSON object. No preamble. No conversation.\n\nJSON:\n{`;
+    const userText = `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nFINAL INSTRUCTION: Use the [MARKERS] defined above to wrap your results. You can explain your logic before the markers.`;
 
     const payload = {
-        contents: [
-            { 
-                role: "user", 
-                parts: [{ text: userText }] 
-            }
-        ],
-        generationConfig: { 
-            temperature: 0.1,
-            response_mime_type: "application/json"
-        }
+        contents: [{ role: "user", parts: [{ text: userText }] }],
+        generationConfig: { temperature: 0.2 }
     };
 
-    console.log("=== AI REQUEST PAYLOAD ===");
-    console.log(JSON.stringify(payload, null, 2));
-
+    console.log("=== AI REQUEST (MARKER MODE) ===");
     const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
@@ -110,39 +145,28 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
         throw new Error(`API error: ${response.status} - ${err}`);
     }
 
-    const result = await response.json();
-    if (!result.candidates || !result.candidates[0].content) return { general_answer: "No response", comments: [] };
+    const resJson = await response.json();
+    if (!resJson.candidates || !resJson.candidates[0].content) return { general_answer: "No response", comments: [] };
     
-    let text = result.candidates[0].content.parts[0].text.trim();
-    // Ensure it starts with { if it doesn't already
-    if (!text.startsWith('{')) text = '{' + text;
-
+    const text = resJson.candidates[0].content.parts[0].text;
     console.log("=== AI FULL RESPONSE ===");
     console.log(text);
     
-    try {
-        return JSON.parse(text);
-    } catch (e) {
-        console.warn(`[AI] JSON parse failed, trying extraction...`);
-        
-        const firstBrace = text.indexOf('{');
-        const lastBrace = text.lastIndexOf('}');
-        
-        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            const jsonPart = text.substring(firstBrace, lastBrace + 1);
-            try {
-                return JSON.parse(jsonPart);
-            } catch (e2) {
-                if (jsonPart.includes("'")) {
-                    try {
-                        const fixed = jsonPart.replace(/([{,]\s*)'([^']+)':/g, '$1"$2":');
-                        return JSON.parse(fixed);
-                    } catch (e3) { }
-                }
+    const parsed = parseMarkerResponse(text, mode);
+    
+    if (parsed.comments.length === 0 && !parsed.general_answer) {
+        // Fallback: try parse as pure JSON if markers not found
+        try {
+            const firstBrace = text.indexOf('{');
+            const lastBrace = text.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                return JSON.parse(text.substring(firstBrace, lastBrace + 1));
             }
-        }
-        throw new Error(`Invalid JSON: ${e.message}`);
+        } catch (e) { }
+        throw new Error("Could not find results with markers in AI response.");
     }
+
+    return parsed;
 }
 
 async function main() {
@@ -191,7 +215,8 @@ async function main() {
             if (comments.length > 0) {
                 await octokit.pulls.createReview({ owner, repo, pull_number: PR_NUMBER, event: 'COMMENT', comments });
             } else {
-                await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body: "✅ **Code Review completed.**\nNo issues found." });
+                const body = result.general_answer || "✅ **Code Review completed.**\nNo issues found.";
+                await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body });
             }
         }
     } catch (err) {

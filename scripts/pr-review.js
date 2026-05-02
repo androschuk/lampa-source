@@ -174,13 +174,15 @@ async function main() {
         for (const file of filteredFiles) {
             diffData += `--- DIFF: ${file.filename} ---\n${file.patch}\n\n`;
             try {
-                const { data: contentData } = await octokit.repos.getContent({ owner, repo, path: file.filename, ref: PR_NUMBER });
-                if (!Array.isArray(contentData) && contentData.content) {
-                    const decoded = Buffer.from(contentData.content, 'base64').toString('utf-8');
+                const filePath = path.join(process.cwd(), file.filename);
+                if (fs.existsSync(filePath)) {
+                    const decoded = fs.readFileSync(filePath, 'utf-8');
                     fullContext += `--- FULL FILE CONTENT: ${file.filename} ---\n${decoded}\n\n`;
+                } else {
+                    console.warn(`[Warning] File not found on disk: ${file.filename}`);
                 }
             } catch (e) {
-                console.warn(`[Warning] Could not fetch full content for ${file.filename}: ${e.message}`);
+                console.warn(`[Warning] Could not read file ${file.filename}: ${e.message}`);
             }
         }
 

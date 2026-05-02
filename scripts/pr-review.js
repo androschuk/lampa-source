@@ -6,7 +6,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 /**
- * AI Assistant Script for Lampa Project
+ * AI Assistant Script for Lampa Project - Robust Version
  */
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -16,7 +16,6 @@ const REPO_FULL_NAME = process.env.REPO_FULL_NAME;
 const COMMENT_BODY = process.env.COMMENT_BODY || '';
 const COMMENT_ID = process.env.COMMENT_ID;
 const MODEL_NAME = "gemma-4-31b-it";
-const IS_REVIEW_COMMENT = process.env.IS_REVIEW_COMMENT === 'true';
 
 if (!GITHUB_TOKEN || !GEMINI_API_KEY || !PR_NUMBER || !REPO_FULL_NAME || !COMMENT_ID) {
     console.error("Error: Missing required environment variables.");
@@ -43,23 +42,23 @@ function loadPrompts(mode, userQuery = '') {
     const skillPath = path.join(process.cwd(), `.gemini/skills/${skillName}/SKILL.md`);
     
     try {
-        const content = fs.readFileSync(skillPath, 'utf-8');
-        const sections = content.split('\n# ');
+        const content = fs.readFileSync(skillPath, 'utf-8').replace(/\r\n/g, '\n');
         
-        const findSection = (tag) => {
-            const section = sections.find(s => s.startsWith(tag));
-            return section ? section.replace(tag, '').trim() : '';
+        const extractSection = (tag) => {
+            const regex = new RegExp(`(?:^|\\n)# ${tag}\\s*\\n([\\s\\S]*?)(?=\\n#|$)`, 'i');
+            const match = content.match(regex);
+            return match ? match[1].trim() : '';
         };
 
-        let sys = findSection('SYSTEM_PROMPT');
-        const modeKey = `MODE_INSTRUCTIONS_${mode.toUpperCase()}`;
-        const modeInst = findSection(modeKey) || findSection('MODE_INSTRUCTIONS_DEFAULT');
+        let sys = extractSection('SYSTEM_PROMPT');
+        const modeInst = extractSection(`MODE_INSTRUCTIONS_${mode.toUpperCase()}`) || extractSection('MODE_INSTRUCTIONS_DEFAULT');
         
         return sys
             .replace('{{modeInstructions}}', modeInst)
             .replace('{{userQuery}}', userQuery);
     } catch (e) {
-        return `JSON-only review. Mode: ${mode}`;
+        console.warn(`[Warning] Failed to load prompts from ${skillPath}: ${e.message}`);
+        return `Analyze this diff and return JSON review. Mode: ${mode}`;
     }
 }
 
@@ -82,14 +81,15 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
     const prompt = loadPrompts(mode, userQuery);
 
+    const userText = `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nFINAL INSTRUCTION: Output ONLY a valid JSON object. No preamble. No conversation.\n\nJSON:\n{`;
+
     const payload = {
-        system_instruction: {
-            parts: [{ text: "You are a robotic JSON generator. Output ONLY a valid JSON object. NO CONVERSATION. NO MARKDOWN." }]
-        },
-        contents: [{ 
-            role: "user", 
-            parts: [{ text: `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nFINAL COMMAND: Analyze internally, then generate the JSON object NOW. ONLY JSON.` }] 
-        }],
+        contents: [
+            { 
+                role: "user", 
+                parts: [{ text: userText }] 
+            }
+        ],
         generationConfig: { 
             temperature: 0.1,
             response_mime_type: "application/json"
@@ -98,7 +98,6 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
 
     console.log("=== AI REQUEST PAYLOAD ===");
     console.log(JSON.stringify(payload, null, 2));
-    console.log("===");
 
     const response = await fetch(url, {
         method: 'POST',
@@ -112,62 +111,38 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     }
 
     const result = await response.json();
-    if (!result.candidates) return { general_answer: "No response", comments: [] };
+    if (!result.candidates || !result.candidates[0].content) return { general_answer: "No response", comments: [] };
     
     let text = result.candidates[0].content.parts[0].text.trim();
-    console.log("=== AI FULL RESPONSE TEXT ===");
+    // Ensure it starts with { if it doesn't already
+    if (!text.startsWith('{')) text = '{' + text;
+
+    console.log("=== AI FULL RESPONSE ===");
     console.log(text);
     
-    // Strategy 1: Look for markdown code blocks
-    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (codeBlockMatch) {
-        const candidate = codeBlockMatch[1].trim();
-        try {
-            return JSON.parse(candidate);
-        } catch (e) {
-            console.warn(`[AI] Failed to parse JSON from code block: ${e.message}`);
-        }
-    }
-
-    // Strategy 2: Standard JSON parse
     try {
         return JSON.parse(text);
-    } catch (e) { }
-
-    console.warn(`[AI] Standard parsing failed, trying brute-force extraction...`);
-    
-    // Strategy 3: Brute-force extraction of the longest { } pair
-    let bestJson = null;
-    let firstBrace = -1;
-    while ((firstBrace = text.indexOf('{', firstBrace + 1)) !== -1) {
-        let lastBrace = text.length;
-        while ((lastBrace = text.lastIndexOf('}', lastBrace - 1)) !== -1 && lastBrace > firstBrace) {
-            const candidate = text.substring(firstBrace, lastBrace + 1);
+    } catch (e) {
+        console.warn(`[AI] JSON parse failed, trying extraction...`);
+        
+        const firstBrace = text.indexOf('{');
+        const lastBrace = text.lastIndexOf('}');
+        
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            const jsonPart = text.substring(firstBrace, lastBrace + 1);
             try {
-                const parsed = JSON.parse(candidate);
-                if (!bestJson || candidate.length > JSON.stringify(bestJson).length) {
-                    bestJson = parsed;
-                }
-            } catch (e) {
-                // Try fix common issues (single quotes)
-                if (candidate.includes("'")) {
+                return JSON.parse(jsonPart);
+            } catch (e2) {
+                if (jsonPart.includes("'")) {
                     try {
-                        const fixed = candidate.replace(/([{,]\s*)'([^']+)':/g, '$1"$2":');
-                        const parsed = JSON.parse(fixed);
-                        if (!bestJson || fixed.length > JSON.stringify(bestJson).length) {
-                            bestJson = parsed;
-                        }
-                    } catch (e2) { }
+                        const fixed = jsonPart.replace(/([{,]\s*)'([^']+)':/g, '$1"$2":');
+                        return JSON.parse(fixed);
+                    } catch (e3) { }
                 }
             }
         }
+        throw new Error(`Invalid JSON: ${e.message}`);
     }
-
-    if (bestJson) return bestJson;
-
-    console.error(`[AI] Failed to extract any valid JSON object.`);
-    console.error(`[AI] FULL RESPONSE FROM AGENT:\n${text}`);
-    throw new Error("Invalid JSON returned by AI. See logs for details.");
 }
 
 async function main() {

@@ -6,7 +6,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 /**
- * AI Assistant Script for Lampa Project - Extreme Simplicity Version
+ * AI Assistant Script for Lampa Project - Context Enriched Version
  */
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -75,15 +75,14 @@ async function manageReaction(action) {
     } catch (e) { }
 }
 
-function parseSimpleMarkers(text, mode) {
+function parseMagicMarkers(text, mode) {
     const result = { general_answer: "", comments: [] };
 
-    // Extract Summary
-    const summaryMatch = text.match(/SUMMARY:\s*(.+)/i);
+    const summaryMatch = text.match(/START_SUMMARY:([\s\S]*?)END_SUMMARY/i);
     if (summaryMatch) result.general_answer = summaryMatch[1].trim();
 
     if (mode === 'test') {
-        const fileRegex = /FILE:\s*(.+?)\s*CODE:\s*([\s\S]*?)END_FILE/gi;
+        const fileRegex = /START_FILE_PATH:([\s\S]*?):END_FILE_PATH[\s\S]*?START_CODE_BLOCK:([\s\S]*?)END_CODE_BLOCK/gi;
         let match;
         while ((match = fileRegex.exec(text)) !== null) {
             result.comments.push({
@@ -93,14 +92,14 @@ function parseSimpleMarkers(text, mode) {
             });
         }
     } else {
-        const commentRegex = /COMMENT_START([\s\S]*?)COMMENT_END/gi;
+        const commentRegex = /START_COMMENT([\s\S]*?)END_COMMENT/gi;
         let match;
         while ((match = commentRegex.exec(text)) !== null) {
             const block = match[1];
             const file = block.match(/FILE:\s*(.+)/i)?.[1]?.trim();
             const line = block.match(/LINE:\s*(\d+)/i)?.[1]?.trim();
             const msg = block.match(/TEXT:\s*(.+)/i)?.[1]?.trim();
-            const suggestion = block.match(/SUGGESTION:\s*([\s\S]*?)END_SUGGESTION/i)?.[1]?.trim();
+            const suggestion = block.match(/START_SUGGESTION:([\s\S]*?)END_SUGGESTION/i)?.[1]?.trim();
 
             if (file && line) {
                 result.comments.push({
@@ -120,14 +119,14 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
     const prompt = loadPrompts(mode, userQuery);
 
-    const userText = `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nCOMMAND: Generate results now. NO CHAT. START WITH FILE:`;
+    const userText = `${prompt}\n\nFILE CONTEXT (Full content of relevant files):\n${priorityFilesContext}\n\nDIFF DATA (Changes only):\n${diffData}\n\nFINAL TASK: Generate results now using the markers below. START IMMEDIATELY WITH START_FILE_PATH.\n\nSTART_FILE_PATH:`;
 
     const payload = {
         contents: [{ role: "user", parts: [{ text: userText }] }],
         generationConfig: { temperature: 0.0 }
     };
 
-    console.log("=== AI REQUEST (EXTREME SIMPLICITY) ===");
+    console.log("=== AI REQUEST (CONTEXT ENRICHED) ===");
     const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
@@ -144,18 +143,18 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     
     let text = resJson.candidates[0].content.parts[0].text;
     
-    // Nudge the text if it doesn't start with FILE:
-    if (!text.trim().startsWith('FILE:') && !text.trim().startsWith('COMMENT_START')) {
-        text = 'FILE: ' + text;
+    // Nudge back the start marker if missing
+    if (!text.includes('START_FILE_PATH:')) {
+        text = 'START_FILE_PATH:' + text;
     }
 
     console.log("=== AI FULL RESPONSE ===");
     console.log(text);
     
-    const parsed = parseSimpleMarkers(text, mode);
+    const parsed = parseMagicMarkers(text, mode);
     
     if (parsed.comments.length === 0 && !parsed.general_answer) {
-        throw new Error("Failed to extract markers. Model did not follow the FILE/CODE format.");
+        throw new Error("Failed to extract results. Model did not follow the marker format.");
     }
 
     return parsed;
@@ -170,11 +169,22 @@ async function main() {
         const filteredFiles = files.filter(f => !IGNORED_PATHS.some(p => f.filename.startsWith(p)) && f.status !== 'removed' && f.patch);
 
         let diffData = "";
+        let fullContext = "";
+
         for (const file of filteredFiles) {
-            diffData += `--- ${file.filename} ---\n${file.patch}\n\n`;
+            diffData += `--- DIFF: ${file.filename} ---\n${file.patch}\n\n`;
+            try {
+                const { data: contentData } = await octokit.repos.getContent({ owner, repo, path: file.filename, ref: PR_NUMBER });
+                if (!Array.isArray(contentData) && contentData.content) {
+                    const decoded = Buffer.from(contentData.content, 'base64').toString('utf-8');
+                    fullContext += `--- FULL FILE CONTENT: ${file.filename} ---\n${decoded}\n\n`;
+                }
+            } catch (e) {
+                console.warn(`[Warning] Could not fetch full content for ${file.filename}: ${e.message}`);
+            }
         }
 
-        const result = await analyzeWithGemini(diffData, "", mode);
+        const result = await analyzeWithGemini(diffData, fullContext, mode);
         const reviewItems = result.comments || [];
 
         if (mode === 'test') {

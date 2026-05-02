@@ -539,8 +539,16 @@ function uid(len){
 
     var id = '';
 
-    for (var i = 0; i < ID_LENGTH; i++) {
-        id += ALPHABET.charAt(Math.floor(Math.random() * ALPHABET.length));
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+        var randomBytes = new Uint32Array(ID_LENGTH);
+        window.crypto.getRandomValues(randomBytes);
+        for (var i = 0; i < ID_LENGTH; i++) {
+            id += ALPHABET.charAt(randomBytes[i] % ALPHABET.length);
+        }
+    } else {
+        for (var i = 0; i < ID_LENGTH; i++) {
+            id += ALPHABET.charAt(Math.floor(Math.random() * ALPHABET.length));
+        }
     }
 
     return id;
@@ -886,15 +894,30 @@ function guid() {
     let hex = "0123456789ABCDEF";
     let gi  = "";
 
-    for (let i = 0; i < 36; i++) {
-        if (i === 8 || i === 13 || i === 18 || i === 23) {
-            gi += "-";
-        } else {
-            let r = Math.floor(Math.random() * 16);
-            // Устанавливаем версию и variant по UUIDv4 спецификации
-            if (i === 14) r = 4; // версия 4
-            if (i === 19) r = (r & 0x3) | 0x8; // variant
-            gi += hex[r];
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+        let randomBytes = new Uint8Array(36);
+        window.crypto.getRandomValues(randomBytes);
+        for (let i = 0; i < 36; i++) {
+            if (i === 8 || i === 13 || i === 18 || i === 23) {
+                gi += "-";
+            } else {
+                let r = randomBytes[i] % 16;
+                if (i === 14) r = 4; // версия 4
+                if (i === 19) r = (r & 0x3) | 0x8; // variant
+                gi += hex[r];
+            }
+        }
+    } else {
+        for (let i = 0; i < 36; i++) {
+            if (i === 8 || i === 13 || i === 18 || i === 23) {
+                gi += "-";
+            } else {
+                let r = Math.floor(Math.random() * 16);
+                // Устанавливаем версию и variant по UUIDv4 спецификации
+                if (i === 14) r = 4; // версия 4
+                if (i === 19) r = (r & 0x3) | 0x8; // variant
+                gi += hex[r];
+            }
         }
     }
 

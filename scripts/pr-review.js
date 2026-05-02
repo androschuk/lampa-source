@@ -114,9 +114,34 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     try {
         return JSON.parse(text);
     } catch (e) {
-        // Fallback for messy output
-        const match = text.match(/\{[\s\S]*\}/);
-        if (match) return JSON.parse(match[0]);
+        console.warn(`[AI] Initial JSON parse failed: ${e.message}`);
+        
+        // Remove markdown code blocks if present
+        let cleanedText = text.replace(/```json\s?|```/g, '').trim();
+        
+        const match = cleanedText.match(/\{[\s\S]*\}/);
+        if (match) {
+            const jsonPart = match[0];
+            try {
+                return JSON.parse(jsonPart);
+            } catch (e2) {
+                // Try to fix common single quote issue if it's at the start
+                if (jsonPart.includes("'")) {
+                    try {
+                        // Very basic attempt to fix single quotes on keys
+                        const fixedJson = jsonPart.replace(/([{,]\s*)'([^']+)':/g, '$1"$2":');
+                        return JSON.parse(fixedJson);
+                    } catch (e3) {
+                        // Ignore and throw original error
+                    }
+                }
+                console.error(`[AI] JSON parse failed even after extraction.`);
+                console.error(`[AI] Raw output snippet: ${text.substring(0, 500)}...`);
+                throw new Error(`Invalid JSON: ${e2.message}`);
+            }
+        }
+        console.error(`[AI] No JSON object found in response.`);
+        console.error(`[AI] Raw output snippet: ${text.substring(0, 500)}...`);
         throw new Error("Invalid JSON returned by AI");
     }
 }

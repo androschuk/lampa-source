@@ -82,9 +82,12 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const prompt = loadPrompts(mode, userQuery);
 
     const payload = {
+        system_instruction: {
+            parts: [{ text: "You are a specialized tool that returns ONLY JSON objects wrapped in markdown code blocks. Never include any other text." }]
+        },
         contents: [{ 
             role: "user", 
-            parts: [{ text: `${prompt}\n\nDiff Data:\n${diffData}\n\nContext:\n${priorityFilesContext}\n\nSTRICT RULE: RETURN ONLY THE JSON OBJECT. DO NOT INCLUDE ANY OTHER TEXT.\n\nJSON:` }] 
+            parts: [{ text: `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nCOMMAND: Analyze the data and return the JSON object wrapped in a markdown code block.\n\nJSON:\n\`\`\`json` }] 
         }],
         generationConfig: { 
             temperature: 0.1,
@@ -108,38 +111,56 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     
     let text = result.candidates[0].content.parts[0].text.trim();
     
+    // Strategy 1: Look for markdown code blocks
+    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+        const candidate = codeBlockMatch[1].trim();
+        try {
+            return JSON.parse(candidate);
+        } catch (e) {
+            console.warn(`[AI] Failed to parse JSON from code block: ${e.message}`);
+        }
+    }
+
+    // Strategy 2: Standard JSON parse
     try {
         return JSON.parse(text);
-    } catch (e) {
-        console.warn(`[AI] Initial JSON parse failed: ${e.message}`);
-        
-        // Remove markdown code blocks if present
-        text = text.replace(/```json\s?|```/g, '').trim();
-        
-        const firstBrace = text.indexOf('{');
-        const lastBrace = text.lastIndexOf('}');
-        
-        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            const jsonPart = text.substring(firstBrace, lastBrace + 1);
+    } catch (e) { }
+
+    console.warn(`[AI] Standard parsing failed, trying brute-force extraction...`);
+    
+    // Strategy 3: Brute-force extraction of the longest { } pair
+    let bestJson = null;
+    let firstBrace = -1;
+    while ((firstBrace = text.indexOf('{', firstBrace + 1)) !== -1) {
+        let lastBrace = text.length;
+        while ((lastBrace = text.lastIndexOf('}', lastBrace - 1)) !== -1 && lastBrace > firstBrace) {
+            const candidate = text.substring(firstBrace, lastBrace + 1);
             try {
-                return JSON.parse(jsonPart);
-            } catch (e2) {
-                // Try to fix common single quote issue
-                if (jsonPart.includes("'")) {
-                    try {
-                        const fixedJson = jsonPart.replace(/([{,]\s*)'([^']+)':/g, '$1"$2":');
-                        return JSON.parse(fixedJson);
-                    } catch (e3) { }
+                const parsed = JSON.parse(candidate);
+                if (!bestJson || candidate.length > JSON.stringify(bestJson).length) {
+                    bestJson = parsed;
                 }
-                console.error(`[AI] JSON parse failed even after extraction.`);
-                console.error(`[AI] Raw output snippet: ${text.substring(0, 500)}...`);
-                throw new Error(`Invalid JSON: ${e2.message}`);
+            } catch (e) {
+                // Try fix common issues (single quotes)
+                if (candidate.includes("'")) {
+                    try {
+                        const fixed = candidate.replace(/([{,]\s*)'([^']+)':/g, '$1"$2":');
+                        const parsed = JSON.parse(fixed);
+                        if (!bestJson || fixed.length > JSON.stringify(bestJson).length) {
+                            bestJson = parsed;
+                        }
+                    } catch (e2) { }
+                }
             }
         }
-        console.error(`[AI] No JSON object found in response.`);
-        console.error(`[AI] Raw output snippet: ${text.substring(0, 500)}...`);
-        throw new Error("Invalid JSON returned by AI");
     }
+
+    if (bestJson) return bestJson;
+
+    console.error(`[AI] Failed to extract any valid JSON object.`);
+    console.error(`[AI] Raw output snippet (500 chars):\n${text.substring(0, 500)}`);
+    throw new Error("Invalid JSON returned by AI. See logs for details.");
 }
 
 async function main() {

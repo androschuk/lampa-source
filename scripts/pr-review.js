@@ -44,19 +44,20 @@ function loadPrompts(mode, userQuery = '') {
     
     try {
         const content = fs.readFileSync(skillPath, 'utf-8');
-        const extractSection = (tag) => {
-            const regex = new RegExp(`# ${tag}\\r?\\n([\\s\\S]*?)(?=\\r?\\n#|$)`);
-            const match = content.match(regex);
-            return match ? match[1].trim() : '';
+        const sections = content.split('\n# ');
+        
+        const findSection = (tag) => {
+            const section = sections.find(s => s.startsWith(tag));
+            return section ? section.replace(tag, '').trim() : '';
         };
 
-        let sys = extractSection('SYSTEM_PROMPT');
-        const inst = extractSection(mode === 'test' ? 'INSTRUCTIONS' : 'MODE_INSTRUCTIONS_DEFAULT');
-        const modeInst = extractSection(`MODE_INSTRUCTIONS_${mode.toUpperCase()}`) || extractSection('MODE_INSTRUCTIONS_DEFAULT');
+        let sys = findSection('SYSTEM_PROMPT');
+        const modeKey = `MODE_INSTRUCTIONS_${mode.toUpperCase()}`;
+        const modeInst = findSection(modeKey) || findSection('MODE_INSTRUCTIONS_DEFAULT');
         
         return sys
             .replace('{{modeInstructions}}', modeInst)
-            .replace('{{userQuery}}', userQuery) + '\n\n' + inst;
+            .replace('{{userQuery}}', userQuery);
     } catch (e) {
         return `JSON-only review. Mode: ${mode}`;
     }
@@ -83,14 +84,15 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
 
     const payload = {
         system_instruction: {
-            parts: [{ text: "You are a robotic JSON generator. Perform internal analysis silently, then output ONLY the JSON object inside a markdown code block." }]
+            parts: [{ text: "You are a robotic JSON generator. Output ONLY a valid JSON object. NO CONVERSATION. NO MARKDOWN." }]
         },
         contents: [{ 
             role: "user", 
-            parts: [{ text: `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nFINAL COMMAND: Analyze the data internally, then generate the JSON object NOW. NO TEXT OUTSIDE THE BLOCK.` }] 
+            parts: [{ text: `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nFINAL COMMAND: Analyze internally, then generate the JSON object NOW. ONLY JSON.` }] 
         }],
         generationConfig: { 
-            temperature: 0.1
+            temperature: 0.1,
+            response_mime_type: "application/json"
         }
     };
 

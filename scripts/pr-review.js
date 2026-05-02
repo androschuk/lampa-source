@@ -95,6 +95,12 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
         }
     };
 
+    console.log("=== AI REQUEST PAYLOAD ===");
+    console.log(payload);
+    console.log("===");
+    console.log(JSON.stringify(payload, null, 2));
+    console.log("===");
+
     const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
@@ -110,6 +116,8 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     if (!result.candidates) return { general_answer: "No response", comments: [] };
     
     let text = result.candidates[0].content.parts[0].text.trim();
+    console.log("=== AI FULL RESPONSE TEXT ===");
+    console.log(text);
     
     // Strategy 1: Look for markdown code blocks
     const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);

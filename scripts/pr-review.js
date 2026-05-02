@@ -159,7 +159,7 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     if (bestJson) return bestJson;
 
     console.error(`[AI] Failed to extract any valid JSON object.`);
-    console.error(`[AI] Raw output snippet (500 chars):\n${text.substring(0, 500)}`);
+    console.error(`[AI] FULL RESPONSE FROM AGENT:\n${text}`);
     throw new Error("Invalid JSON returned by AI. See logs for details.");
 }
 

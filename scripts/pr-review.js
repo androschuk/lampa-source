@@ -6,7 +6,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 /**
- * AI Assistant Script for Lampa Project - Robust Thought-Result Version
+ * AI Assistant Script for Lampa Project - Extreme Simplicity Version
  */
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -43,22 +43,20 @@ function loadPrompts(mode, userQuery = '') {
     
     try {
         const content = fs.readFileSync(skillPath, 'utf-8').replace(/\r\n/g, '\n');
-        
-        const extractSection = (tag) => {
-            const regex = new RegExp(`(?:^|\\n)# ${tag}\\s*\\n([\\s\\S]*?)(?=\\n#|$)`, 'i');
+        const findSection = (tag) => {
+            const regex = new RegExp(`# ${tag}\\s*\\n([\\s\\S]*?)(?=\\n#|$)`, 'i');
             const match = content.match(regex);
             return match ? match[1].trim() : '';
         };
 
-        let sys = extractSection('SYSTEM_PROMPT');
-        const modeKey = `MODE_INSTRUCTIONS_${mode.toUpperCase()}`;
-        const modeInst = extractSection(modeKey) || extractSection('MODE_INSTRUCTIONS_DEFAULT');
+        let sys = findSection('SYSTEM_PROMPT');
+        const modeInst = findSection(`MODE_INSTRUCTIONS_${mode.toUpperCase()}`) || findSection('MODE_INSTRUCTIONS_DEFAULT');
         
         return sys
             .replace('{{modeInstructions}}', modeInst)
             .replace('{{userQuery}}', userQuery);
     } catch (e) {
-        return `Analyze this diff and return marked results. Mode: ${mode}`;
+        return `Analyze this diff and return results. Mode: ${mode}`;
     }
 }
 
@@ -77,18 +75,15 @@ async function manageReaction(action) {
     } catch (e) { }
 }
 
-function parseMarkerResponse(text, mode) {
-    const result = {
-        general_answer: "",
-        comments: []
-    };
+function parseSimpleMarkers(text, mode) {
+    const result = { general_answer: "", comments: [] };
 
     // Extract Summary
-    const summaryMatch = text.match(/\[GENERAL_SUMMARY\]([\s\S]*?)\[\/GENERAL_SUMMARY\]/i);
+    const summaryMatch = text.match(/SUMMARY:\s*(.+)/i);
     if (summaryMatch) result.general_answer = summaryMatch[1].trim();
 
     if (mode === 'test') {
-        const fileRegex = /\[FILE_START:\s*(.+?)\][\s\S]*?\[CONTENT_START\]([\s\S]*?)\[\/CONTENT_START\]/gi;
+        const fileRegex = /FILE:\s*(.+?)\s*CODE:\s*([\s\S]*?)END_FILE/gi;
         let match;
         while ((match = fileRegex.exec(text)) !== null) {
             result.comments.push({
@@ -98,14 +93,14 @@ function parseMarkerResponse(text, mode) {
             });
         }
     } else {
-        const commentRegex = /\[COMMENT_START\]([\s\S]*?)\[\/COMMENT_START\]/gi;
+        const commentRegex = /COMMENT_START([\s\S]*?)COMMENT_END/gi;
         let match;
         while ((match = commentRegex.exec(text)) !== null) {
             const block = match[1];
             const file = block.match(/FILE:\s*(.+)/i)?.[1]?.trim();
             const line = block.match(/LINE:\s*(\d+)/i)?.[1]?.trim();
             const msg = block.match(/TEXT:\s*(.+)/i)?.[1]?.trim();
-            const suggestion = block.match(/\[SUGGESTION_START\]([\s\S]*?)\[\/SUGGESTION_START\]/i)?.[1]?.trim();
+            const suggestion = block.match(/SUGGESTION:\s*([\s\S]*?)END_SUGGESTION/i)?.[1]?.trim();
 
             if (file && line) {
                 result.comments.push({
@@ -125,17 +120,14 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
     const prompt = loadPrompts(mode, userQuery);
 
-    const userText = `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nCOMMAND: Follow the [THOUGHTS] -> [RESULT] sequence. Start now:\n\n[THOUGHTS]`;
+    const userText = `${prompt}\n\nDIFF DATA:\n${diffData}\n\nCONTEXT:\n${priorityFilesContext}\n\nCOMMAND: Generate results now. NO CHAT. START WITH FILE:`;
 
     const payload = {
         contents: [{ role: "user", parts: [{ text: userText }] }],
-        generationConfig: { 
-            temperature: 0.0,
-            stopSequences: ["[/RESULT]"] 
-        }
+        generationConfig: { temperature: 0.0 }
     };
 
-    console.log("=== AI REQUEST (THOUGHT-RESULT MODE) ===");
+    console.log("=== AI REQUEST (EXTREME SIMPLICITY) ===");
     const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
@@ -150,17 +142,20 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const resJson = await response.json();
     if (!resJson.candidates || !resJson.candidates[0].content) return { general_answer: "No response", comments: [] };
     
-    // Add the starting nudge back to the response
-    let text = "[THOUGHTS]" + resJson.candidates[0].content.parts[0].text;
-    if (!text.includes("[/RESULT]")) text += "[/RESULT]";
+    let text = resJson.candidates[0].content.parts[0].text;
+    
+    // Nudge the text if it doesn't start with FILE:
+    if (!text.trim().startsWith('FILE:') && !text.trim().startsWith('COMMENT_START')) {
+        text = 'FILE: ' + text;
+    }
 
     console.log("=== AI FULL RESPONSE ===");
     console.log(text);
     
-    const parsed = parseMarkerResponse(text, mode);
+    const parsed = parseSimpleMarkers(text, mode);
     
     if (parsed.comments.length === 0 && !parsed.general_answer) {
-        throw new Error("Could not extract results from AI response. Ensure markers [FILE_START], [CONTENT_START] are used.");
+        throw new Error("Failed to extract markers. Model did not follow the FILE/CODE format.");
     }
 
     return parsed;

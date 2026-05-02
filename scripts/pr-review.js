@@ -82,12 +82,9 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const prompt = loadPrompts(mode, userQuery);
 
     const payload = {
-        system_instruction: {
-            parts: [{ text: "You are a specialized tool that returns ONLY JSON objects. Never include any other text." }]
-        },
         contents: [{ 
             role: "user", 
-            parts: [{ text: `${prompt}\n\nDiff Data:\n${diffData}\n\nContext:\n${priorityFilesContext}` }] 
+            parts: [{ text: `${prompt}\n\nDiff Data:\n${diffData}\n\nContext:\n${priorityFilesContext}\n\nSTRICT RULE: RETURN ONLY THE JSON OBJECT. DO NOT INCLUDE ANY OTHER TEXT.\n\nJSON:` }] 
         }],
         generationConfig: { 
             temperature: 0.1,
@@ -109,7 +106,7 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const result = await response.json();
     if (!result.candidates) return { general_answer: "No response", comments: [] };
     
-    const text = result.candidates[0].content.parts[0].text.trim();
+    let text = result.candidates[0].content.parts[0].text.trim();
     
     try {
         return JSON.parse(text);
@@ -117,23 +114,22 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
         console.warn(`[AI] Initial JSON parse failed: ${e.message}`);
         
         // Remove markdown code blocks if present
-        let cleanedText = text.replace(/```json\s?|```/g, '').trim();
+        text = text.replace(/```json\s?|```/g, '').trim();
         
-        const match = cleanedText.match(/\{[\s\S]*\}/);
-        if (match) {
-            const jsonPart = match[0];
+        const firstBrace = text.indexOf('{');
+        const lastBrace = text.lastIndexOf('}');
+        
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            const jsonPart = text.substring(firstBrace, lastBrace + 1);
             try {
                 return JSON.parse(jsonPart);
             } catch (e2) {
-                // Try to fix common single quote issue if it's at the start
+                // Try to fix common single quote issue
                 if (jsonPart.includes("'")) {
                     try {
-                        // Very basic attempt to fix single quotes on keys
                         const fixedJson = jsonPart.replace(/([{,]\s*)'([^']+)':/g, '$1"$2":');
                         return JSON.parse(fixedJson);
-                    } catch (e3) {
-                        // Ignore and throw original error
-                    }
+                    } catch (e3) { }
                 }
                 console.error(`[AI] JSON parse failed even after extraction.`);
                 console.error(`[AI] Raw output snippet: ${text.substring(0, 500)}...`);

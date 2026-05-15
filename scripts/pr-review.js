@@ -15,7 +15,7 @@ const PR_NUMBER = parseInt(process.env.PR_NUMBER);
 const REPO_FULL_NAME = process.env.REPO_FULL_NAME;
 const COMMENT_BODY = process.env.COMMENT_BODY || '';
 const COMMENT_ID = process.env.COMMENT_ID;
-const MODEL_NAME = "gemini-1.5-flash-002";
+const MODEL_NAME = "gemini-1.5-flash-latest";
 
 if (!GITHUB_TOKEN || !GEMINI_API_KEY || !PR_NUMBER || !REPO_FULL_NAME || !COMMENT_ID) {
     console.error("Error: Missing required environment variables.");

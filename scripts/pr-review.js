@@ -6,7 +6,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 
 /**
- * AI Assistant Script for Lampa Project - Context Enriched Version
+ * AI Assistant Script for Lampa Project - XML Parsing Version
  */
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
@@ -15,7 +15,7 @@ const PR_NUMBER = parseInt(process.env.PR_NUMBER);
 const REPO_FULL_NAME = process.env.REPO_FULL_NAME;
 const COMMENT_BODY = process.env.COMMENT_BODY || '';
 const COMMENT_ID = process.env.COMMENT_ID;
-const MODEL_NAME = "gemma-4-31b-it";
+const MODEL_NAME = "gemini-1.5-flash-002";
 
 if (!GITHUB_TOKEN || !GEMINI_API_KEY || !PR_NUMBER || !REPO_FULL_NAME || !COMMENT_ID) {
     console.error("Error: Missing required environment variables.");
@@ -26,6 +26,27 @@ const [owner, repo] = REPO_FULL_NAME.split("/");
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
 const IGNORED_PATHS = ['src/lang/', '.github/', 'package-lock.json', 'dist/', 'build/'];
+const MAX_CONTEXT_CHARS = 800000; // ~200k-250k tokens safety cap
+
+const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+
+async function fetchWithRetry(url, options, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        const response = await fetch(url, options);
+        if (response.ok) return response;
+        
+        // Don't retry on 400/401/403/404 unless it's a rate limit (429)
+        const isTransient = response.status === 429 || response.status >= 500;
+        if (!isTransient || i === retries - 1) {
+            const err = await response.text();
+            throw new Error(`API error: ${response.status} - ${err}`);
+        }
+
+        const wait = Math.pow(2, i) * 2000;
+        console.log(`[AI] Request failed (${response.status}). Retrying in ${wait}ms... (${i + 1}/${retries})`);
+        await sleep(wait);
+    }
+}
 
 function runCommand(command) {
     try {
@@ -56,7 +77,7 @@ function loadPrompts(mode, userQuery = '') {
             .replace('{{modeInstructions}}', modeInst)
             .replace('{{userQuery}}', userQuery);
     } catch (e) {
-        return `Analyze this diff and return results. Mode: ${mode}`;
+        return `Analyze this diff and return results in XML <REPORT> block. Mode: ${mode}`;
     }
 }
 
@@ -75,14 +96,15 @@ async function manageReaction(action) {
     } catch (e) { }
 }
 
-function parseMagicMarkers(text, mode) {
+function parseXmlResponse(text, mode) {
     const result = { general_answer: "", comments: [] };
 
-    const summaryMatch = text.match(/START_SUMMARY:([\s\S]*?)END_SUMMARY/i);
+    // Extract Summary
+    const summaryMatch = text.match(/<SUMMARY>([\s\S]*?)<\/SUMMARY>/i);
     if (summaryMatch) result.general_answer = summaryMatch[1].trim();
 
     if (mode === 'test') {
-        const fileRegex = /START_FILE_PATH:([\s\S]*?):END_FILE_PATH[\s\S]*?START_CODE_BLOCK:([\s\S]*?)END_CODE_BLOCK/gi;
+        const fileRegex = /<FILE path="(.+?)">[\s\S]*?<CODE>([\s\S]*?)<\/CODE>[\s\S]*?<\/FILE>/gi;
         let match;
         while ((match = fileRegex.exec(text)) !== null) {
             result.comments.push({
@@ -92,14 +114,14 @@ function parseMagicMarkers(text, mode) {
             });
         }
     } else {
-        const commentRegex = /START_COMMENT([\s\S]*?)END_COMMENT/gi;
+        const commentRegex = /<COMMENT>([\s\S]*?)<\/COMMENT>/gi;
         let match;
         while ((match = commentRegex.exec(text)) !== null) {
             const block = match[1];
-            const file = block.match(/FILE:\s*(.+)/i)?.[1]?.trim();
-            const line = block.match(/LINE:\s*(\d+)/i)?.[1]?.trim();
-            const msg = block.match(/TEXT:\s*(.+)/i)?.[1]?.trim();
-            const suggestion = block.match(/START_SUGGESTION:([\s\S]*?)END_SUGGESTION/i)?.[1]?.trim();
+            const file = block.match(/<FILE>([\s\S]*?)<\/FILE>/i)?.[1]?.trim();
+            const line = block.match(/<LINE>([\s\S]*?)<\/LINE>/i)?.[1]?.trim();
+            const msg = block.match(/<TEXT>([\s\S]*?)<\/TEXT>/i)?.[1]?.trim();
+            const suggestion = block.match(/<SUGGESTION>([\s\S]*?)<\/SUGGESTION>/i)?.[1]?.trim();
 
             if (file && line) {
                 result.comments.push({
@@ -119,42 +141,36 @@ async function analyzeWithGemini(diffData, priorityFilesContext, mode, userQuery
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
     const prompt = loadPrompts(mode, userQuery);
 
-    const userText = `${prompt}\n\nFILE CONTEXT (Full content of relevant files):\n${priorityFilesContext}\n\nDIFF DATA (Changes only):\n${diffData}\n\nFINAL TASK: Generate results now using the markers below. START IMMEDIATELY WITH START_FILE_PATH.\n\nSTART_FILE_PATH:`;
+    const userText = `${prompt}\n\nFILE CONTEXT:\n${priorityFilesContext}\n\nDIFF DATA:\n${diffData}\n\nFINAL TASK: Start with <THOUGHTS>, then provide the <REPORT>.`;
+
+    console.log(`[AI] Requesting ${MODEL_NAME}. Payload size: ${userText.length} chars.`);
 
     const payload = {
         contents: [{ role: "user", parts: [{ text: userText }] }],
-        generationConfig: { temperature: 0.0 }
+        generationConfig: { 
+            temperature: 0.2,
+            maxOutputTokens: 4096
+        }
     };
 
-    console.log("=== AI REQUEST (CONTEXT ENRICHED) ===");
-    const response = await fetch(url, {
+    console.log("=== AI REQUEST (XML MODE) ===");
+    const response = await fetchWithRetry(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
         body: JSON.stringify(payload)
     });
 
-    if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`API error: ${response.status} - ${err}`);
-    }
-
     const resJson = await response.json();
     if (!resJson.candidates || !resJson.candidates[0].content) return { general_answer: "No response", comments: [] };
     
     let text = resJson.candidates[0].content.parts[0].text;
-    
-    // Nudge back the start marker if missing
-    if (!text.includes('START_FILE_PATH:')) {
-        text = 'START_FILE_PATH:' + text;
-    }
-
     console.log("=== AI FULL RESPONSE ===");
     console.log(text);
     
-    const parsed = parseMagicMarkers(text, mode);
+    const parsed = parseXmlResponse(text, mode);
     
     if (parsed.comments.length === 0 && !parsed.general_answer) {
-        throw new Error("Failed to extract results. Model did not follow the marker format.");
+        throw new Error("Failed to extract results from XML tags.");
     }
 
     return parsed;
@@ -168,21 +184,31 @@ async function main() {
         const { data: files } = await octokit.pulls.listFiles({ owner, repo, pull_number: PR_NUMBER });
         const filteredFiles = files.filter(f => !IGNORED_PATHS.some(p => f.filename.startsWith(p)) && f.status !== 'removed' && f.patch);
 
-        let diffData = "";
-        let fullContext = "";
-
-        for (const file of filteredFiles) {
-            diffData += `--- DIFF: ${file.filename} ---\n${file.patch}\n\n`;
+        // Concurrent file reading
+        const processedFiles = await Promise.all(filteredFiles.map(async (file) => {
+            let content = null;
             try {
                 const filePath = path.join(process.cwd(), file.filename);
                 if (fs.existsSync(filePath)) {
-                    const decoded = fs.readFileSync(filePath, 'utf-8');
-                    fullContext += `--- FULL FILE CONTENT: ${file.filename} ---\n${decoded}\n\n`;
-                } else {
-                    console.warn(`[Warning] File not found on disk: ${file.filename}`);
+                    content = fs.readFileSync(filePath, 'utf-8');
                 }
-            } catch (e) {
-                console.warn(`[Warning] Could not read file ${file.filename}: ${e.message}`);
+            } catch (e) { }
+            return { ...file, fullContent: content };
+        }));
+
+        let diffData = "";
+        let fullContext = "";
+
+        for (const file of processedFiles) {
+            diffData += `--- DIFF: ${file.filename} ---\n${file.patch}\n\n`;
+            
+            if (file.fullContent) {
+                const chunk = `--- FULL FILE: ${file.filename} ---\n${file.fullContent}\n\n`;
+                if ((fullContext.length + chunk.length) < MAX_CONTEXT_CHARS) {
+                    fullContext += chunk;
+                } else {
+                    console.warn(`[Warning] Context cap reached. Skipping full content for: ${file.filename}`);
+                }
             }
         }
 
@@ -225,7 +251,7 @@ async function main() {
         }
     } catch (err) {
         console.error(err);
-        await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body: `❌ **AI Assistant Error**: ${err.message}` });
+        await octokit.issues.createComment({ owner, repo, issue_number: PR_NUMBER, body: "❌ **AI Assistant Error**: Something went wrong while processing your request. Please check the action logs for details." });
     } finally {
         await manageReaction('complete');
     }

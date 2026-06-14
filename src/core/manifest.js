@@ -1,8 +1,8 @@
 let object = {
     author: 'Yumata',
     github: 'https://github.com/yumata/lampa-source',
-    css_version: '3.2.0',
-    app_version: '3.2.0',
+    css_version: '3.2.3',
+    app_version: '3.2.3',
     cub_site: 'cub.rip',
     apk_link_download: 'https://github.com/lampa-app/LAMPA/releases/download/v1.12.3/app-lite-release.apk'
 }
@@ -77,6 +77,15 @@ Object.defineProperty(object, 'cub_domain', {
         let use = localStorage.getItem('cub_domain') || ''
 
         return object.cub_mirrors.indexOf(use) > -1 ? use : object.cub_mirrors[0]
+    } 
+})
+
+/**
+ * Текущее живое зеркало с протоколом http|https
+ */
+Object.defineProperty(object, 'cub_alive', { 
+    get: ()=> {
+        return localStorage.getItem('cub_alive') || 'https://' + object.cub_domain
     } 
 })
 

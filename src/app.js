@@ -814,7 +814,7 @@ function loadTask(){
         setTimeout(showApp, 5000)
     })
 
-    // todo: потом удалить, это костыль для исправления старых адресов джакетта
+    // todo: потом удалить, это костыль для исправления старых адресов джакетта 
     Task.secondary(()=>{
         let tsl1 = window.localStorage.getItem('jackett_url') || ''
         let tsl2 = window.localStorage.getItem('jackett_url_two') || ''

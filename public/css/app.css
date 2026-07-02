@@ -5111,7 +5111,6 @@ video::-webkit-media-controls-panel-container {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 1;
 }
 .player-video__paused, .player-video__loader {
   position: fixed;
@@ -5239,7 +5238,6 @@ video::-webkit-media-controls-panel-container {
   -moz-transition: transform 0.2s, -moz-transform 0.2s;
   transition: transform 0.2s;
   transition: transform 0.2s, -webkit-transform 0.2s, -moz-transform 0.2s, -o-transform 0.2s;
-  z-index: 2;
   pointer-events: none;
 }
 .player-video__subtitles.size--large {
@@ -5322,7 +5320,6 @@ video::-webkit-media-controls-panel-container {
 .player-video__subs-advanced {
   position: fixed;
   pointer-events: none;
-  z-index: 2;
   overflow: hidden;
 }
 .player-video__subs-advanced.hide {

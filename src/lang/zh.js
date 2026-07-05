@@ -141,6 +141,11 @@ export default {
     settings_parser_timeout_descr: '等待服务器响应的时间（以秒为单位）',
     settings_player_type: '播放器类型',
     settings_player_type_descr: '用哪个播放器',
+    settings_infuse_launch_mode: 'Infuse 启动方式',
+    settings_infuse_launch_mode_descr: '在 Infuse 中打开视频时的操作。种子始终立即播放',
+    settings_infuse_launch_ask: '启动时询问',
+    settings_infuse_launch_play: '播放',
+    settings_infuse_launch_save_and_play: '保存并播放',
     settings_player_iptv_type: 'IPTV播放器类型',
     settings_player_iptv_type_descr: '哪个播放器播放IPTV频道',
     settings_player_reset: '重置默认播放器',
@@ -305,6 +310,7 @@ export default {
     title_mytorrents: '我的种子',
     title_last: '最后',
     title_action: '动作',
+    title_action_infuse: 'Infuse 操作',
     title_producer: '制片人',
     title_collection: '合集',
     title_recomendations: '推荐',
@@ -1198,6 +1204,11 @@ export default {
     player_segments_value_auto: '自动跳过',
     player_segments_value_user: '自定义',
     player_segments_skiped: '片段已跳过',
+    player_segments_skip_now: '跳过',
+    player_segments_skip_in: '跳过倒计时',
+    player_segments_skip_intro: '跳过片头',
+    player_segments_next: '下一集',
+    player_segments_next_in: '下一集倒计时',
     subscribe_info: '在“订阅”部分，您可以查看所有翻译订阅。当您选择的翻译发布新剧集时，您将收到通知。',
     no_watch_history: '没有浏览历史记录',
 
@@ -1258,5 +1269,16 @@ export default {
     remote_configuration_waite_text: '您现在可以将此代码传递给另一个应用程序，以授予对设置的访问权限。',
     remote_configuration_open_button: '开放访问',
     remote_configuration_code_life: '代码有效',
-    remote_configuration_notice_nocode: '无法开放访问'
+    remote_configuration_notice_nocode: '无法开放访问',
+
+    settings_server_gts: '转码',
+    settings_server_gts_descr: '必要时自动将视频转换为兼容格式。',
+
+    title_metadata: '元数据',
+    title_moods: '情绪',
+    title_meta_violence: '暴力',
+    title_meta_fear: '恐惧',
+    title_meta_profanity: '粗口',
+    title_meta_sadness: '悲伤',
+    title_meta_sex: '性'
 }

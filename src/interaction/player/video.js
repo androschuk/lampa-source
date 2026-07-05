@@ -6,6 +6,7 @@ import Platform from '../../core/platform'
 import Arrays from '../../utils/arrays'
 import Storage from '../../core/storage/storage'
 import CustomSubs from './subs'
+import CanvasSubsOverlay from './subs/canvas-renderer'
 import Normalization from './normalization'
 import Lang from '../../core/lang'
 import Panel from './panel'
@@ -33,6 +34,9 @@ let rewind_position = 0
 let rewind_force    = 0
 let last_mutation   = 0
 let customsubs
+let subsAdvanced
+let subsAdvancedRaf
+let subsAdvancedVisible
 let video
 let wait
 let neeed_sacle
@@ -46,11 +50,26 @@ let normalization
 let hls_parser
 let render_trigger
 
+let hls_subs_cues         = {}
+let hls_subs_active_track = -1
+
 let click_nums = 0
 let click_timer
 let pause_timer
 
 let video_tube = []
+
+function applySubtitleToDom(text, style){
+    let inner = $('> div', subtitles)
+
+    inner.removeClass('bold italic underline')
+
+    if(style) inner.addClass(style)
+
+    inner.html(text ? text : '&nbsp;').css({
+        display: text ? 'inline-block' : 'none'
+    })
+}
 
 function init(){
     html      = Template.get('player_video')
@@ -144,7 +163,7 @@ function init(){
             video.currentTime = Math.min(video.duration, e.segment.end)
 
             Bell.push({text: Lang.translate('player_segments_skiped'), icon: Template.string('icon_viewed')})
-        } 
+        }
     })
 }
 
@@ -292,7 +311,11 @@ function bind(){
 
         if(customsubs) customsubs.update(video.currentTime)
 
+        if(subsAdvanced && subsAdvancedVisible) subsAdvanced.syncLayout()
+
         Segments.update(video.currentTime)
+
+        hlsSubsTimeUpdate(video.currentTime)
     })
 
     // обновляем субтитры
@@ -311,9 +334,7 @@ function bind(){
 
         e.text = e.text.trim()
 
-        $('> div',subtitles).html(e.text ? e.text : '&nbsp;').css({
-            display: e.text ? 'inline-block' : 'none'
-        })
+        applySubtitleToDom(e.text)
 
         clearTimeout(timer.subtitle)
 
@@ -326,6 +347,8 @@ function bind(){
 
     //получены первые данные
     video.addEventListener('loadeddata', function (e) {
+        Segments.adjust(video.duration)
+
         listener.send('videosize',{width: video.videoWidth, height: video.videoHeight})
         listener.send('loadeddata',{})
 
@@ -351,6 +374,26 @@ function hlsBitrate(seconds) {
 
         Lampa.PlayerInfo.set('bitrate', ch + bt + bf)
     }
+}
+
+function hlsSubsTimeUpdate(currentTime) {
+    if(hls_subs_active_track < 0) return
+
+    let cues = hls_subs_cues[hls_subs_active_track]
+    if(!cues) return
+
+    let active = null
+
+    for(let i = 0; i < cues.length; i++){
+        let c = cues[i]
+
+        if(c.startTime <= currentTime && currentTime < c.endTime){
+            active = c
+            break
+        }
+    }
+
+    applySubtitleToDom(active ? (active.text || '') : '')
 }
 
 function hlsLevelName(level){
@@ -501,6 +544,8 @@ function scale(){
     }
     
     $(video).css(sz)
+
+    if(subsAdvanced && subsAdvancedVisible) subsAdvanced.syncLayout()
 
     neeed_sacle = false
 }
@@ -729,12 +774,55 @@ function loaded(){
 }
 
 
+function stopSubsAdvancedLoop(){
+    if(subsAdvancedRaf){
+        cancelAnimationFrame(subsAdvancedRaf)
+        subsAdvancedRaf = false
+    }
+}
+
+function startSubsAdvancedLoop(){
+    stopSubsAdvancedLoop()
+
+    let tick = ()=>{
+        if(!customsubs || !customsubs.hasAdvanced() || !subsAdvancedVisible){
+            stopSubsAdvancedLoop()
+            return
+        }
+
+        customsubs.update(video.currentTime)
+        subsAdvancedRaf = requestAnimationFrame(tick)
+    }
+
+    subsAdvancedRaf = requestAnimationFrame(tick)
+}
+
+function destroySubsAdvanced(){
+    stopSubsAdvancedLoop()
+
+    if(subsAdvanced){
+        subsAdvanced.destroy()
+        subsAdvanced = false
+    }
+}
+
+function ensureSubsAdvanced(){
+    if(subsAdvanced) return subsAdvanced
+
+    subsAdvanced = new CanvasSubsOverlay(display)
+    subsAdvanced.bindVideo(video)
+
+    return subsAdvanced
+}
+
 /**
  * Установить собственные субтитры
  * @param {[{index:integer, label:string, url:string}]} subs 
  */
 function customSubs(subs){
     if(!Arrays.isArray(subs)) return console.log('Player','custom subs not array', subs)
+
+    destroySubsAdvanced()
 
     if(customsubs) customsubs.destroy()
 
@@ -745,9 +833,41 @@ function customSubs(subs){
     customsubs = new CustomSubs()
 
     customsubs.listener.follow('subtitle',(e)=>{
-        $('> div',subtitles).html(e.text ? e.text : '&nbsp;').css({
-            display: e.text ? 'inline-block' : 'none'
-        })
+        applySubtitleToDom(e.text, e.style)
+    })
+
+    customsubs.listener.follow('advanced',(data)=>{
+        let overlay = ensureSubsAdvanced()
+
+        overlay.setPlayRes(data.playRes)
+        overlay.setVisible(subsAdvancedVisible)
+
+        if(subsAdvancedVisible){
+            startSubsAdvancedLoop()
+            customsubs.update(video.currentTime)
+        }
+    })
+
+    customsubs.listener.follow('advanced-frame',(e)=>{
+        if(!subsAdvanced || !subsAdvancedVisible) return
+
+        if(e.pseudo && e.cue){
+            subsAdvanced.render(e.cue)
+
+            if(subsAdvancedVisible) subtitles.addClass('hide')
+
+            return
+        }
+
+        subsAdvanced.render(null)
+
+        if(subsAdvancedVisible) subtitles.removeClass('hide')
+    })
+
+    customsubs.listener.follow('ready',(e)=>{
+        if(!e.hasAdvanced) destroySubsAdvanced()
+
+        if(subsAdvancedVisible && customsubs) customsubs.update(video.currentTime)
     })
 
     let index = -1
@@ -779,7 +899,19 @@ function customSubs(subs){
  * @param {boolean} status 
  */
 function subsview(status){
+    subsAdvancedVisible = status
+
     subtitles.toggleClass('hide', !status)
+
+    if(subsAdvanced) subsAdvanced.setVisible(status)
+
+    if(status){
+        if(customsubs && customsubs.hasAdvanced()) startSubsAdvancedLoop()
+        else stopSubsAdvancedLoop()
+
+        if(customsubs) customsubs.update(video.currentTime)
+    }
+    else stopSubsAdvancedLoop()
 }
 
 /**
@@ -978,6 +1110,7 @@ function loader(status){
                 hls = new Hls({
                     manifestLoadTimeout: Player.playdata().hls_manifest_timeout || 10000,
                     manifestLoadMaxRetryTimeout: Player.playdata().hls_retry_timeout || 30000,
+                    renderTextTracksNatively: false,
                     xhrSetup: function(xhr, url) {
                         xhr.timeout = Player.playdata().hls_manifest_timeout || 10000
                         xhr.ontimeout = function() {
@@ -1007,6 +1140,50 @@ function loader(status){
                 })
                 hls.on(Hls.Events.MANIFEST_PARSED, function(event, data){
                     hls.currentLevel = hlsLevelDefault(hls)
+                })
+                hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, function(_event, data){
+                    if(!data.subtitleTracks || !data.subtitleTracks.length) return
+
+                    hls_subs_cues         = {}
+                    hls_subs_active_track = -1
+
+                    let subs = data.subtitleTracks.map(function(track, i){
+                        let sub = {
+                            index:    i,
+                            label:    track.name || track.lang || ('Subtitle ' + (i + 1)),
+                            selected: false
+                        }
+
+                        Object.defineProperty(sub, 'mode', {
+                            set: function(v){
+                                if(v == 'showing'){
+                                    hls_subs_active_track = i
+                                    hls.subtitleTrack     = i
+                                    subsview(true)
+                                }
+                                else{
+                                    if(hls_subs_active_track == i){
+                                        hls_subs_active_track = -1
+                                        hls.subtitleTrack     = -1
+                                        applySubtitleToDom('')
+                                    }
+                                }
+                            },
+                            get: function(){ return hls_subs_active_track == i ? 'showing' : 'disabled' }
+                        })
+
+                        return sub
+                    })
+
+                    listener.send('subs', {subs: subs})
+                })
+                hls.on(Hls.Events.CUES_PARSED, function(_event, data){
+                    let idx = hls.subtitleTrack
+                    if(idx < 0) return
+
+                    if(!hls_subs_cues[idx]) hls_subs_cues[idx] = []
+
+                    data.cues.forEach(function(cue){ hls_subs_cues[idx].push(cue) })
                 })
             }
             else if(!change_quality && !TV.playning()){
@@ -1358,11 +1535,14 @@ function destroy(savemeta){
             hls.destroy()
         }
         catch(e){}
-        
+
         hls = false
 
         hls_destoyed = true
     }
+
+    hls_subs_cues         = {}
+    hls_subs_active_track = -1
 
     if(hls_parser){
         try{
@@ -1388,6 +1568,8 @@ function destroy(savemeta){
             customsubs.destroy()
             customsubs = false
         }
+
+        destroySubsAdvanced()
     }
     else{
         Lampa.PlayerInfo.set('bitrate','')

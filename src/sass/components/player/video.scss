@@ -141,6 +141,7 @@ video::-webkit-media-controls-panel-container {
         font-weight: 600;
         line-height: 1.25;
         transition: transform $speed;
+        pointer-events: none;
 
         &.size {
             &--large {
@@ -207,9 +208,37 @@ video::-webkit-media-controls-panel-container {
         padding: .25em .5em;
         border-radius: .25em;
 
+        &.bold {
+            font-weight: 700;
+        }
+
+        &.italic {
+            font-style: italic;
+        }
+
+        &.underline {
+            text-decoration: underline;
+        }
+
         &:empty {
             display: none;
         }
+    }
+
+    &__subs-advanced{
+        position: fixed;
+        pointer-events: none;
+        overflow: hidden;
+
+        &.hide{
+            display: none;
+        }
+    }
+
+    &__subs-advanced-canvas{
+        display: block;
+        width: 100%;
+        height: 100%;
     }
 
     &.video--load{

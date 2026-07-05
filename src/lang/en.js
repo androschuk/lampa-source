@@ -153,6 +153,11 @@ export default {
 
     settings_player_type: 'Player type',
     settings_player_type_descr: 'Which player to play',
+    settings_infuse_launch_mode: 'Launch in Infuse',
+    settings_infuse_launch_mode_descr: 'What to do when opening video in Infuse. Torrents always play immediately',
+    settings_infuse_launch_ask: 'Ask on launch',
+    settings_infuse_launch_play: 'Play',
+    settings_infuse_launch_save_and_play: 'Save and play',
     settings_player_iptv_type: 'Player type for IPTV',
     settings_player_iptv_type_descr: 'Which player to play IPTV channels',
     settings_player_reset: 'Reset default player',
@@ -327,6 +332,7 @@ export default {
     title_mytorrents: 'My torrents',
     title_last: 'Last',
     title_action: 'Action',
+    title_action_infuse: 'Infuse action',
     title_producer: 'Producer',
     title_collection: 'Collection',
     title_recomendations: 'Recommendations',
@@ -1248,6 +1254,11 @@ export default {
     player_segments_value_auto: 'Auto skip',
     player_segments_value_user: 'Custom',
     player_segments_skiped: 'Segment skipped',
+    player_segments_skip_now: 'Skip',
+    player_segments_skip_in: 'Skip in',
+    player_segments_skip_intro: 'Skip intro',
+    player_segments_next: 'Next episode',
+    player_segments_next_in: 'Next episode in',
     subscribe_info: 'In the Subscriptions section, you\'ll see all your translation subscriptions. You\'ll receive a notification when a new episode with your selected translation is released.',
     no_watch_history: 'No browsing history',
 
@@ -1308,5 +1319,16 @@ export default {
     remote_configuration_waite_text: 'You can now pass this code to another application to grant access to settings.',
     remote_configuration_open_button: 'Open Access',
     remote_configuration_code_life: 'Code is valid',
-    remote_configuration_notice_nocode: 'Failed to open access'
+    remote_configuration_notice_nocode: 'Failed to open access',
+
+    settings_server_gts: 'Transcoding',
+    settings_server_gts_descr: 'Automatically convert video to a compatible format when needed.',
+
+    title_metadata: 'Metadata',
+    title_moods: 'Moods',
+    title_meta_violence: 'Violence',
+    title_meta_fear: 'Fear',
+    title_meta_profanity: 'Profanity',
+    title_meta_sadness: 'Sadness',
+    title_meta_sex: 'Sexuality'
 }

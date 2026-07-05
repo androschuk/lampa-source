@@ -795,24 +795,32 @@ function component(object){
             })
 
             let item = Template.get('torrent',element)
+            let need_remove_ffprobe = false
 
             if(!element.ffprobe){
                 element.ffprobe = []
+
+                need_remove_ffprobe = true
             }
 
             if(element.ffprobe){
                 let ffprobe_elem = item.find('.torrent-item__ffprobe')
                 let ffprobe_tags = []
                 let general      = element.general || {}
-                let quality      = element.info && element.info.quality ? Utils.qualityToText(element.info.quality + 'p') : general.resolution
+                let quality      = general.resolution || (element.info && element.info.quality ? Utils.qualityToText(element.info.quality + 'p') : '')
 
                 if(object.movie.number_of_seasons && general.season){
                     ffprobe_elem.append('<div class="m-general"><div>S'+general.season+'</div>'+(general.episodes ? '<div>' + general.episodes + '</div>' : '')+'</div>')
                 }
 
                 if(quality) ffprobe_tags.push({media: 'resolution', value: quality})
+
+                if(general.hdr) ffprobe_tags.push({media: 'resolution', value: 'HDR'})
     
                 let video = element.ffprobe.find(a=>a.codec_type == 'video')
+
+                if(!quality && video) ffprobe_tags.push({media: 'resolution',value: Utils.qualityToText(Utils.resolutionToQuality(video.width, video.height, 'p'))})
+
                 let audio = element.ffprobe.filter(a=>a.codec_type == 'audio' && a.tags)
                 let subs  = element.ffprobe.filter(a=>a.codec_type == 'subtitle' && a.tags)
                 let voice = Arrays.clone(element.info && element.info.voices ? element.info.voices : [])
@@ -876,6 +884,8 @@ function component(object){
                 })
     
                 if($('> div', ffprobe_elem).length) ffprobe_elem.removeClass('hide')
+
+                if(need_remove_ffprobe) delete element.ffprobe
             }
 
             if (!bitrate) item.find('.bitrate').remove()

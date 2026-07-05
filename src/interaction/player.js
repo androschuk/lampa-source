@@ -25,9 +25,18 @@ import Preroll from './advert/preroll'
 import Footer from './player/footer'
 import Segments from './player/segments'
 import ExternalPlayer from '../core/externalPlayer.js'
+import InfusePlayer from '../core/infusePlayer.js'
 
 let html
 let listener = Subscribe()
+
+let skip_button
+let skip_current = null
+let skip_timer  = null
+let skip_text_in  = ''
+let skip_text_btn = ''
+let skip_is_end   = false
+let skip_phase    = ''
 
 let callback
 let work = false
@@ -43,6 +52,8 @@ let show_disclaimer = false
 let preloader = {
     wait: false
 }
+
+let play_pending = null
 
 let viewing = {
     time: 0,
@@ -66,6 +77,10 @@ function init(){
     html.append(Panel.render())
     html.append(Info.render())
     html.append(Footer.render())
+
+    skip_button = $(`<div class="player-skip selector hide"><span class="player-skip__text"></span></div>`)
+    html.append(skip_button)
+    skip_button.on('hover:enter', skipDo)
 
     let timer_hide_cursor
 
@@ -91,6 +106,20 @@ function init(){
         Panel.update('position', (e.current / e.duration * 100) + '%')
 
         Screensaver.resetTimer()
+
+        let near     = Segments.getNear(e.current || 0)
+        let user_seg = near && Storage.get('player_segments_' + near.type, 'auto') == 'user' && !near.segment.skiped
+
+        if(user_seg){
+            if(near.phase === 'preview'){
+                if(!skip_current || skip_current.segment !== near.segment || skip_phase !== 'preview') skipPreview(near)
+                else skipPreviewUpdate(near.starts_in)
+            }
+            else if(near.phase === 'inside'){
+                if(!skip_current || skip_current.segment !== near.segment || skip_phase !== 'active') skipActive(near)
+            }
+        }
+        else if(skip_current) skipHide()
 
         if(work && work.timeline && !work.timeline.waiting_for_user && !work.timeline.stop_recording && e.duration){
             if(Storage.field('player_timecode') !== 'again' && !work.timeline.continued){
@@ -372,8 +401,6 @@ function init(){
 
             if(e.item.callback) e.item.callback()
 
-            if(Torserver.ip() && e.item.url.indexOf(Torserver.ip()) > -1) Info.set('stat',e.item.url)
-
             Playlist.active()
 
             Panel.showNextEpisodeName({playlist: Playlist.get(), position: Playlist.position()})
@@ -432,6 +459,113 @@ function init(){
 /**
  * Главный контроллер
  */
+/**
+ * Тексты кнопки пропуска сегмента
+ */
+function skipTexts(e){
+    let v   = Video.video()
+    let dur = v ? (v.duration || 0) : 0
+    let end = dur && e.type == 'skip' && (e.segment.start >= dur * 0.7 || e.segment.end >= dur - 15)
+
+    skip_is_end = Boolean(end)
+
+    if(end){
+        skip_text_in  = Lang.translate('player_segments_next_in')
+        skip_text_btn = Lang.translate('player_segments_next')
+    }
+    else if(e.type == 'skip'){
+        skip_text_in  = Lang.translate('player_segments_skip_in')
+        skip_text_btn = Lang.translate('player_segments_skip_now')
+    }
+    else{
+        skip_text_in  = Lang.translate('player_segments_skip_in')
+        skip_text_btn = Lang.translate('player_segments_skip_now')
+    }
+}
+
+/**
+ * Превью за 5 с до начала сегмента
+ */
+function skipPreview(e){
+    if(!skip_button) return
+
+    clearInterval(skip_timer)
+
+    skip_current = e
+    skip_phase   = 'preview'
+
+    skipTexts(e)
+    skipPreviewUpdate(e.starts_in)
+
+    skip_button.removeClass('hide focus').addClass('player-skip--preview')
+}
+
+function skipPreviewUpdate(seconds){
+    if(!skip_button || skip_phase !== 'preview') return
+
+    skip_button.find('.player-skip__text').text(skip_text_in + ' ' + seconds)
+}
+
+/**
+ * Активная кнопка пропуска в начале сегмента
+ */
+function skipActive(e){
+    if(!skip_button) return
+
+    clearInterval(skip_timer)
+
+    skip_current = e
+    skip_phase   = 'active'
+
+    skipTexts(e)
+    skip_button.removeClass('player-skip--preview')
+
+    skipButton()
+}
+
+function skipButton(){
+    if(!skip_button) return
+
+    clearInterval(skip_timer)
+
+    skip_button.find('.player-skip__text').text(skip_text_btn)
+    skip_button.removeClass('hide')
+
+    if(Controller.enabled().name == 'player') Controller.toggle('player_skip')
+}
+
+function skipHide(){
+    clearInterval(skip_timer)
+
+    if(skip_button) skip_button.addClass('hide').removeClass('focus player-skip--preview')
+
+    let was = skip_current
+    skip_current = null
+    skip_phase   = ''
+
+    if(was && Controller.enabled().name == 'player_skip') Controller.toggle('player')
+}
+
+function skipDo(){
+    if(skip_phase !== 'active') return
+
+    if(skip_current){
+        skip_current.segment.skiped = true
+
+        if(skip_is_end){
+            skipHide()
+
+            Playlist.next()
+
+            return
+        }
+
+        Video.to(Math.min(Video.video().duration || skip_current.segment.end, skip_current.segment.end))
+    }
+
+    skipHide()
+}
+
 function toggle(){
     Controller.add('player',{
         invisible: true,
@@ -439,7 +573,8 @@ function toggle(){
             Panel.hide()
         },
         up: ()=>{
-            Panel.toggle()
+            if(skip_button && !skip_button.hasClass('hide') && skip_phase === 'active') Controller.toggle('player_skip')
+            else Panel.toggle()
         },
         down: ()=>{
             Panel.toggle()
@@ -485,6 +620,21 @@ function toggle(){
         back: backward
     })
 
+    Controller.add('player_skip',{
+        toggle: ()=>{
+            if(skip_phase !== 'active') return
+
+            Controller.collectionSet(html)
+            Controller.collectionFocus(skip_button[0], html)
+        },
+        up: ()=>{ Panel.toggle() },
+        down: ()=>{ Panel.toggle() },
+        left: ()=>{ Controller.toggle('player') },
+        right: ()=>{ Controller.toggle('player') },
+        gone: ()=>{ if(skip_button) skip_button.removeClass('focus') },
+        back: backward
+    })
+
     Controller.toggle('player')
 }
 
@@ -500,6 +650,8 @@ function toggle(){
  */
 
 function backward(){
+    launch_player = ''
+
     destroy()
 
     if(callback) callback()
@@ -513,6 +665,8 @@ function backward(){
  */
 function destroy(){
     saveTimeView()
+
+    skipHide()
 
     if(work.viewed) work.viewed(viewing.time)
 
@@ -724,59 +878,24 @@ function externalPlayer(player_need, data, players, infuseCallbacks){
         players[p] = players[p].replace('${url}', url).replace('${_url}', _url).replace('${furl}', furl).replace('${playlist}', playlist).replace('${segments}', segments)
     }
 
-    // Infuse multi-URL playlist support for x-callback-url
+    // Infuse: save_and_play, readable filenames, season playlist
     if(player == 'infuse'){
-        let multiUrl = buildInfuseMultiUrl(data, infuseCallbacks)
-        if(multiUrl) return multiUrl
+        InfusePlayer.normalizePlayData(data)
+
+        let customUrl = null
+
+        listener.send('infuse_build_url', {
+            data,
+            callbacks: infuseCallbacks,
+            setUrl: (url) => { customUrl = url }
+        })
+
+        if(customUrl) return customUrl
+
+        return InfusePlayer.resolveUrl(data, infuseCallbacks) || players.infuse
     }
 
     return players[player]
-}
-
-function buildInfuseMultiUrl(data, callbacks){
-    callbacks = callbacks || {}
-
-    let items = (Array.isArray(data.playlist) ? data.playlist : [])
-        .filter(p => typeof p.url == 'string')
-
-    if(items.length <= 1) return null
-
-    let currentUrl = data.url.replace('&preload','&play')
-    let currentIndex = -1
-
-    for(let i = 0; i < items.length; i++){
-        if(items[i].url.replace('&preload','&play') === currentUrl){
-            currentIndex = i
-            break
-        }
-    }
-
-    if(currentIndex < 0) currentIndex = 0
-
-    let urlParts = []
-
-    for(let i = currentIndex; i < items.length; i++){
-        let item = items[i]
-        let itemUrl = encodeURIComponent(item.url.replace('&preload','&play'))
-        urlParts.push('url=' + itemUrl)
-
-        if(item.title){
-            let filename = Utils.clearHtmlTags(item.title).trim()
-            if(filename){
-                urlParts.push('filename=' + encodeURIComponent(filename))
-            }
-        }
-    }
-
-    if(callbacks.x_success){
-        urlParts.push('x-success=' + encodeURIComponent(callbacks.x_success))
-    }
-
-    if(callbacks.x_error){
-        urlParts.push('x-error=' + encodeURIComponent(callbacks.x_error))
-    }
-
-    return 'infuse://x-callback-url/play?' + urlParts.join('&')
 }
 
 function needInnerPlayerDisclaimer(player_need){
@@ -840,6 +959,72 @@ function showInnerPlayerDisclaimer(call){
     })
 }
 
+function prepareInfuseLaunch(data, player_need, callback, onCancel){
+    if(Storage.field(player_need) !== 'infuse') return callback()
+
+    // Торрент + Infuse: всегда play? с position
+    if(InfusePlayer.isTorrentStream(data)){
+        data.infuse_mode = 'play'
+        return callback()
+    }
+
+    let setting = Storage.field('infuse_launch_mode') || 'play'
+
+    if(setting !== 'ask'){
+        data.infuse_mode = setting
+        return callback()
+    }
+
+    delete data.infuse_mode
+
+    let enabled = Controller.enabled()
+
+    Select.show({
+        title: Lang.translate('title_action_infuse'),
+        items: [
+            {
+                title: Lang.translate('settings_infuse_launch_save_and_play'),
+                mode: 'save_and_play'
+            },
+            {
+                title: Lang.translate('settings_infuse_launch_play'),
+                mode: 'play'
+            }
+        ],
+        onSelect: (item)=>{
+            Controller.toggle(enabled.name)
+
+            data.infuse_mode = item.mode
+            callback()
+
+            delete data.infuse_mode
+        },
+        onBack: ()=>{
+            Controller.toggle(enabled.name)
+
+            if(onCancel) onCancel()
+        }
+    })
+}
+
+function launchExternalPlayer(data, player_need, players, infuseCallbacks, onFallback){
+    let launch = (external_url)=>{
+        if(!external_url) return onFallback ? onFallback() : null
+
+        Preroll.show(data,()=>{
+            listener.send('external',data)
+
+            window.location.assign(external_url)
+        })
+    }
+
+    prepareInfuseLaunch(data, player_need, ()=>{
+        launch(externalPlayer(player_need, data, players, infuseCallbacks))
+    }, ()=>{
+        listener.send('destroy',{})
+    })
+}
+
 function start(data, need, inner){
     let player_need = 'player' + (need ? '_' + need : '')
     let launchInner = ()=>{
@@ -851,7 +1036,7 @@ function start(data, need, inner){
 
     if(launch_player == 'lampa' || launch_player == 'inner' || Video.verifyTube(data.url)) launchInner()
     else if(Platform.is('apple')){
-        let external_url = externalPlayer(player_need, data, {
+        launchExternalPlayer(data, player_need, {
             vlc:        'vlc://${furl}',
             nplayer:    'nplayer-${furl}',
             infuse:     'infuse://x-callback-url/play?url=${url}',
@@ -859,42 +1044,26 @@ function start(data, need, inner){
             vidhub:     'open-vidhub://x-callback-url/open?&url=${url}',
             svplayer:   'svplayer://x-callback-url/stream?url=${url}',
             tracyplayer:'tracy://open?url=${url}'
+        }, null, ()=>{
+            if(Storage.field(player_need) == 'ios'){
+                html.addClass('player--ios')
+                launchInner()
+            }
+            else launchInner()
         })
-
-        if (external_url) {
-            Preroll.show(data,()=>{
-                listener.send('external',data)
-
-                window.location.assign(external_url)
-            })
-        }
-        else if(Storage.field(player_need) == 'ios'){
-            html.addClass('player--ios')
-            
-            launchInner()
-        }
-        else launchInner()
     }
     else if(Platform.macOS()){
-        let external_url = externalPlayer(player_need, data, {
+        launchExternalPlayer(data, player_need, {
             mpv:    'mpv://${_url}',
             iina:   'iina://weblink?url=${url}',
             nplayer:'nplayer-${_url}',
             infuse: 'infuse://x-callback-url/play?url=${url}'
-        })
-
-        if (external_url) {
-            Preroll.show(data,()=>{
-                listener.send('external',data)
-
-                window.location.assign(external_url)
-            })
-        }
-        else launchInner()
+        }, null, launchInner)
     }
     else if(Platform.is('apple_tv')){
-        let apple_tv_client = Storage.field('apple_tv_client') ?? 'lampa';
-        let external_url = externalPlayer(player_need, data, {
+        let apple_tv_client = Storage.field('apple_tv_client') ?? 'lampa'
+
+        launchExternalPlayer(data, player_need, {
             vlc:        'vlc-x-callback://x-callback-url/stream?url=${url}',
             infuse:     `infuse://x-callback-url/play?x-success=${apple_tv_client}://infuseDidFinish&x-error=${apple_tv_client}://infuseDidFail&url=\${url}&playlist=\${playlist}`,
             senplayer:  'SenPlayer://x-callback-url/play?url=${url}',
@@ -905,19 +1074,7 @@ function start(data, need, inner){
             tvos:       'lampa://video?player=tvos&src=${url}&playlist=${playlist}&segments=${segments}',
             tvosl:      'lampa://video?player=tvosav&src=${url}&playlist=${playlist}&segments=${segments}',
             tvosSelect: 'lampa://video?player=lists&src=${url}&playlist=${playlist}&segments=${segments}'
-        }, {
-            x_success: `${apple_tv_client}://infuseDidFinish`,
-            x_error: `${apple_tv_client}://infuseDidFail`
-        })
-
-        if (external_url) {
-            Preroll.show(data,()=>{
-                listener.send('external',data)
-
-                window.location.assign(external_url)
-            })
-        }
-        else launchInner()
+        }, null, launchInner)
     }
     else if(Platform.is('webos') && (Storage.field(player_need) == 'webos' || launch_player == 'webos')){
         Preroll.show(data,()=>{
@@ -931,7 +1088,7 @@ function start(data, need, inner){
             listener.send('external',data)
         })
     } 
-    else if(Platform.is('android') && (Storage.field(player_need) == 'android' || launch_player == 'android' || data.torrent_hash)){
+    else if(Platform.is('android') && (Storage.field(player_need) == 'android' || launch_player == 'android' || (data.torrent_hash && !Torserver.gstWork()))){
         data.url   = data.url.replace('&preload','&play')
         data.title = Utils.clearHtmlTags(data.title || '').trim()
         
@@ -977,6 +1134,8 @@ function start(data, need, inner){
         })
     }
     else launchInner()
+
+    if(data.launch_player) delete data.launch_player
 }
 
 /**
@@ -1036,6 +1195,8 @@ function play(data){
 
     console.log('Player','url:',data.url)
 
+    if(data.torrent_hash && Torserver.gstWork()) data.hls_manifest_timeout = 60000
+
     if(data.quality){
         if(Arrays.getKeys(data.quality).length == 1) delete data.quality
         else{
@@ -1064,9 +1225,12 @@ function play(data){
 
                 Segments.set(data.segments)
 
+                skipHide()
+
                 Playlist.url(data.url)
 
-                Playlist.set(Playlist.get()) //надо повторно отправить, а то после рекламы неправильно показывает
+                if(data.playlist && data.playlist.length) Playlist.set(data.playlist)
+                else Playlist.set(Playlist.get()) //надо повторно отправить, а то после рекламы неправильно показывает
 
                 Panel.quality(data.quality,data.url)
 
@@ -1082,6 +1246,8 @@ function play(data){
                 if(data.voiceovers) Panel.setTracks(data.voiceovers)
 
                 Info.set('name',data.title)
+
+                stat(data)
 
                 if(!data.iptv){
                     if(data.card) Footer.appendAbout(data.card)
@@ -1109,9 +1275,13 @@ function play(data){
         })
     }
 
-    start(data, data.torrent_hash ? 'torrent' : '', lauch)
+    play_pending = data
 
-    launch_player = ''
+    if(launch_player) data.launch_player = launch_player
+
+    start(play_pending, play_pending.torrent_hash ? 'torrent' : '', lauch)
+
+    play_pending = null
 }
 
 function iptv(data){
@@ -1157,8 +1327,10 @@ function iptv(data){
  * Статистика для торрсервера
  * @param {String} url 
  */
-function stat(url){
-    if(work || preloader.wait) Info.set('stat',url)
+function stat(data){
+    if(work || preloader.wait){
+        if(Torserver.ip() && data.url.indexOf(Torserver.ip()) > -1) Info.set('stat', data)
+    }
 }
 
 /**
@@ -1170,7 +1342,9 @@ function stat(url){
  */
 
 function playlist(playlist){
-    if(work || preloader.wait || wait_for_disclaimer) Playlist.set(playlist)
+    if(play_pending && !play_pending.playlist) play_pending.playlist = playlist
+
+    if(play_pending || work || preloader.wait || wait_for_disclaimer) Playlist.set(playlist)
 }
 
 /**

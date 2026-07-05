@@ -153,6 +153,11 @@ export default {
 
     settings_player_type: 'Type de lecteur',
     settings_player_type_descr: 'Choisir le lecteur par défaut',
+    settings_infuse_launch_mode: 'Lancement dans Infuse',
+    settings_infuse_launch_mode_descr: 'Action à l\'ouverture d\'une vidéo dans Infuse. Les torrents sont toujours lus immédiatement',
+    settings_infuse_launch_ask: 'Demander au lancement',
+    settings_infuse_launch_play: 'Lire',
+    settings_infuse_launch_save_and_play: 'Enregistrer et lire',
     settings_player_iptv_type: 'Lecteur pour l\'IPTV',
     settings_player_iptv_type_descr: 'Lecteur utilisé pour les chaînes IPTV',
     settings_player_reset: 'Réinitialiser le lecteur',
@@ -327,6 +332,7 @@ export default {
     title_mytorrents: 'Mes torrents',
     title_last: 'Dernier',
     title_action: 'Action',
+    title_action_infuse: 'Action Infuse',
     title_producer: 'Producteur',
     title_collection: 'Collection',
     title_recomendations: 'Recommandations',
@@ -1247,6 +1253,11 @@ export default {
     player_segments_value_auto: 'Saut automatique',
     player_segments_value_user: 'Personnalisé',
     player_segments_skiped: 'Segment ignoré',
+    player_segments_skip_now: 'Ignorer',
+    player_segments_skip_in: 'Saut dans',
+    player_segments_skip_intro: 'Passer l\'intro',
+    player_segments_next: 'Épisode suivant',
+    player_segments_next_in: 'Épisode suivant dans',
     subscribe_info: 'Retrouvez vos abonnements ici. Notifications activées pour les nouvelles sorties.',
     no_watch_history: 'Aucun historique de visionnage',
 
@@ -1302,11 +1313,22 @@ export default {
     inner_player_disclaimer_text: 'Je comprends que je lance un lecteur avec une prise en charge incomplète, et je comprends que cela peut provoquer un comportement atypique de l appareil. Il est recommande de passer aux lecteurs de la famille tvOS ou a d autres alternatives.',
 
     inner_player_disclaimer_change_player: 'Changer le lecteur',
-}
+
     remote_configuration_settings_title: 'Configuration à distance',
     remote_configuration_registration_text: "La configuration à distance fournit un accès temporaire à votre application, une autre application pourra installer des extensions et configurer des paramètres.",
     remote_configuration_waite_text: "Vous pouvez maintenant transmettre ce code à une autre application pour lui accorder l'accès aux paramètres.",
     remote_configuration_open_button: "Ouvrir l'accès",
     remote_configuration_code_life: 'Le code est valide',
-    remote_configuration_notice_nocode: "Impossible d'ouvrir l'accès"
+    remote_configuration_notice_nocode: "Impossible d'ouvrir l'accès",
+
+    settings_server_gts: 'Transcodage',
+    settings_server_gts_descr: 'Convertir automatiquement la vidéo dans un format compatible si nécessaire.',
+
+    title_metadata: 'Métadonnées',
+    title_moods: 'Ambiances',
+    title_meta_violence: 'Violence',
+    title_meta_fear: 'Peur',
+    title_meta_profanity: 'Langage',
+    title_meta_sadness: 'Tristesse',
+    title_meta_sex: 'Sexualité'
 }

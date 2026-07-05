@@ -169,6 +169,7 @@ function init(){
             'tvosSelect': '#{settings_param_player_outside}',
             'vlc': 'VLC',
             'infuse': 'Infuse',
+            'senplayer': 'SenPlayer',
             'vidhub': 'Vidhub',
             'inner': '#{settings_param_player_inner}',
             'svplayer': 'SVPlayer'
@@ -181,6 +182,7 @@ function init(){
             'tvosSelect': '#{settings_param_player_outside}',
             'vlc': 'VLC',
             'infuse': 'Infuse',
+            'senplayer': 'SenPlayer',
             'vidhub': 'Vidhub',
             'inner': '#{settings_param_player_inner}',
             'svplayer': 'SVPlayer'
@@ -191,6 +193,7 @@ function init(){
             'tvos': '#{settings_param_player_inner_tvos} tvOS Universal',
             'tvosSelect': '#{settings_param_player_outside}',
             'infuse': 'Infuse',
+            'senplayer': 'SenPlayer',
             'vidhub': 'Vidhub',
             'vlc': 'VLC',
             'inner': '#{settings_param_player_inner}',
@@ -479,6 +482,20 @@ function update(elem,elems,elems_html){
 
         listener.send('update_scroll_position')
     }
+
+    updateInfuseLaunchVisibility(elems_html)
+}
+
+function isInfusePlayerSelected(){
+    return ['player', 'player_iptv', 'player_torrent'].some((name)=>{
+        return Storage.field(name) === 'infuse'
+    })
+}
+
+function updateInfuseLaunchVisibility(elems_html){
+    if(!elems_html || !elems_html.length) return
+
+    elems_html.find('[data-infuse-launch]').toggleClass('hide', !isInfusePlayerSelected())
 }
 
 /**
@@ -604,6 +621,12 @@ select('player_timecode',{
     'ask': '#{settings_param_player_timecode_ask}',
 },'continue')
 
+select('infuse_launch_mode', {
+    'ask': '#{settings_infuse_launch_ask}',
+    'play': '#{settings_infuse_launch_play}',
+    'save_and_play': '#{settings_infuse_launch_save_and_play}',
+}, 'play')
+
 select('player_scale_method',{
     'transform': 'Transform',
     'calculate': '#{settings_param_player_scale_method}',
@@ -720,6 +743,7 @@ trigger('parser_use',false)
 trigger('cloud_use',false)
 trigger('account_use',false)
 trigger('torrserver_auth',false)
+trigger('torrserver_gts', false)
 trigger('mask',true)
 trigger('playlist_next',true)
 trigger('internal_torrclient', true)
@@ -747,7 +771,6 @@ trigger('interface_sound_play', false)
 trigger('menu_always', false)
 trigger('player_external_fullscreen', true)
 trigger('adult_content_view', false)
-
 
 /**
  * Добовляем поля

@@ -152,6 +152,11 @@ export default {
 
     settings_player_type: 'Тип плейър',
     settings_player_type_descr: 'Кой плейър да се използва',
+    settings_infuse_launch_mode: 'Стартиране в Infuse',
+    settings_infuse_launch_mode_descr: 'Какво да прави при отваряне на видео в Infuse. За торенти винаги веднага възпроизвеждане',
+    settings_infuse_launch_ask: 'Питай при стартиране',
+    settings_infuse_launch_play: 'Пусни',
+    settings_infuse_launch_save_and_play: 'Запази и пусни',
     settings_player_iptv_type: 'Тип плеър за IPTV',
     settings_player_iptv_type_descr: 'Кой плейър да се използва за IPTV канали',
     settings_player_reset: 'Нулирай плейъра по подразбиране',
@@ -326,6 +331,7 @@ export default {
     title_mytorrents: 'Моите торенти',
     title_last: 'Последен',
     title_action: 'Действие',
+    title_action_infuse: 'Действие Infuse',
     title_producer: 'Продуцент',
     title_collection: 'Колекция',
     title_recomendations: 'Препоръки',
@@ -1249,6 +1255,11 @@ export default {
     player_segments_value_auto: 'Автоматично прескачане',
     player_segments_value_user: 'Персонализирано',
     player_segments_skiped: 'Сегментът е пропуснат',
+    player_segments_skip_now: 'Прескочи',
+    player_segments_skip_in: 'Прескачане след',
+    player_segments_skip_intro: 'Пропусни въведението',
+    player_segments_next: 'Следващ епизод',
+    player_segments_next_in: 'Следващ епизод след',
     subscribe_info: 'В раздела „Абонаменти“ ще видите всички ваши абонаменти за преводи. Ще получите известие, когато излезе нов епизод с избрания от вас превод.',
     no_watch_history: 'Няма история на сърфиране',
 
@@ -1309,5 +1320,16 @@ export default {
     remote_configuration_waite_text: 'Вече можете да предадете този код на друго приложение, за да му предоставите достъп до настройките.',
     remote_configuration_open_button: 'Отвори достъп',
     remote_configuration_code_life: 'Кодът е валиден',
-    remote_configuration_notice_nocode: 'Неуспешно отваряне на достъп'
+    remote_configuration_notice_nocode: 'Неуспешно отваряне на достъп',
+
+    settings_server_gts: 'Прекодиране',
+    settings_server_gts_descr: 'Автоматично конвертиране на видеото в съвместим формат при необходимост.',
+
+    title_metadata: 'Метаданни',
+    title_moods: 'Настроения',
+    title_meta_violence: 'Насилие',
+    title_meta_fear: 'Страх',
+    title_meta_profanity: 'Лексика',
+    title_meta_sadness: 'Тъга',
+    title_meta_sex: 'Сексуалност'
 }

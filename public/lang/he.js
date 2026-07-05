@@ -139,6 +139,11 @@ export default {
     settings_parser_timeout_descr: 'זמן בשניות לחכות לתגובה מהשרת',
     settings_player_type: 'סוג שחקן',
     settings_player_type_descr: 'VOD בחר סוג נגן',
+    settings_infuse_launch_mode: 'הפעלה ב-Infuse',
+    settings_infuse_launch_mode_descr: 'מה לעשות בפתיחת וידאו ב-Infuse. טורנטים תמיד מתחילים מיד',
+    settings_infuse_launch_ask: 'שאל בהפעלה',
+    settings_infuse_launch_play: 'השמע',
+    settings_infuse_launch_save_and_play: 'שמור והשמע',
     settings_player_iptv_type: 'IPTV סוג נגן עבור',
     settings_player_iptv_type_descr: 'IPTV איזה נגן להפעיל בערוצי',
     settings_player_reset: 'אפס נגן ברירת מחדל',
@@ -301,6 +306,7 @@ export default {
     title_mytorrents: 'הטורנטים שלי',
     title_last: 'אחרון',
     title_action: 'פעולה',
+    title_action_infuse: 'פעולת Infuse',
     title_producer: 'מפיק',
     title_collection: 'אוסף',
     title_recomendations: 'המלצות',
@@ -1142,6 +1148,11 @@ export default {
     player_segments_value_auto: 'דלג אוטומטית',
     player_segments_value_user: 'מותאם אישית',
     player_segments_skiped: 'קטע דולג',
+    player_segments_skip_now: 'דלג',
+    player_segments_skip_in: 'דילוג בעוד',
+    player_segments_skip_intro: 'דלג על הפתיח',
+    player_segments_next: 'הפרק הבא',
+    player_segments_next_in: 'הפרק הבא בעוד',
     subscribe_info: 'בקטע "מנויים" תוכלו לראות את כל מנויי התרגום שלכם. תקבלו התראה כאשר יצא פרק חדש עם התרגום שבחרתם.',
     no_watch_history: 'אין היסטוריית גלישה',
 
@@ -1209,5 +1220,16 @@ export default {
     remote_configuration_waite_text: 'כעת תוכל להעביר קוד זה לאפליקציה אחרת כדי להעניק גישה להגדרות.',
     remote_configuration_open_button: 'פתח גישה',
     remote_configuration_code_life: 'הקוד בתוקף',
-    remote_configuration_notice_nocode: 'נכשל בפתיחת הגישה'
+    remote_configuration_notice_nocode: 'נכשל בפתיחת הגישה',
+
+    settings_server_gts: 'קידוד מחדש',
+    settings_server_gts_descr: 'המרה אוטומטית של וידאו לפורמט תואם בעת הצורך.',
+
+    title_metadata: 'מטא-נתונים',
+    title_moods: 'מצבי רוח',
+    title_meta_violence: 'אלימות',
+    title_meta_fear: 'פחד',
+    title_meta_profanity: 'שפה',
+    title_meta_sadness: 'עצב',
+    title_meta_sex: 'מיניות'
 }

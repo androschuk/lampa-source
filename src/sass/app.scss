@@ -38,6 +38,11 @@
 @use 'components/player/panel';
 @use 'components/player/info' as player_info;
 @use 'components/player/footer';
+@use 'components/player/skip';
+@use 'components/player/next';
+@use 'components/player/chat';
+@use 'components/player/charts';
+@use 'components/player/agent';
 @use 'components/selectbox/box' as selectbox_box;
 @use 'components/selectbox/item';
 @use 'components/youtube';

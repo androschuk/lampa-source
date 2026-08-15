@@ -464,7 +464,10 @@ function full(params, oncomplite, onerror){
 
     if(Utils.dcma(params.method, params.id)) return onerror()
 
-    get('3/'+params.method+'/'+params.id+'?api_key='+TMDBApi.key()+'&append_to_response=content_ratings,release_dates,keywords,alternative_titles&language='+Storage.field('tmdb_lang'),params,(json)=>{
+    let image_language = (Storage.field('tmdb_lang') || 'en').split(/[-_]/)[0]
+    let image_languages = [image_language, 'en', 'null'].filter((language, index, list)=>list.indexOf(language) == index).join(',')
+
+    get('3/'+params.method+'/'+params.id+'?api_key='+TMDBApi.key()+'&append_to_response=content_ratings,release_dates,external_ids,keywords,alternative_titles,images&include_image_language='+image_languages+'&language='+Storage.field('tmdb_lang'),params,(json)=>{
         if(json.status_code) return status.stop(),onerror()
 
         json.source = 'cub'
@@ -543,7 +546,7 @@ function full(params, oncomplite, onerror){
         },status.error.bind(status))
     }
 
-    if(Lang.selected(['ru','uk','be'])){
+    if(params.method == 'movie'){
         status.need++
 
         metadataGet(params, (json)=>{
@@ -573,7 +576,7 @@ function trailers(type, oncomplite){
 function metadataGet(params, oncomplite){
     if(window.lampa_settings.disable_features.metadata) return oncomplite({})
     
-    network.silent(Utils.protocol() + Manifest.cub_domain + '/api/ai/metadata/' + params.id + '/' + params.method, oncomplite,()=>{
+    network.silent(Utils.protocol() + Manifest.cub_domain + '/api/ai/video-view/' + params.id + '/metadata?type=' + params.method, oncomplite,()=>{
         oncomplite({})
     }, false, {timeout: 1000 * 5})
 }

@@ -42,7 +42,7 @@ function connect(){
 
     if(window.lampa_settings.socket_url) socket_url = window.lampa_settings.socket_url
     
-    clearInterval(ping)
+    clearTimeout(ping)
 
     clearTimeout(timeout)
 
@@ -50,7 +50,7 @@ function connect(){
         console.log('Socket','timeout close')
 
         if(socket) socket.close()
-    },10000)
+    },1000 * 60)
 
     try{
         socket = new WebSocket(socket_url)
@@ -95,13 +95,13 @@ function connect(){
 
     socket.addEventListener('error', (event)=> {
         console.log('Socket','error:','maybe there is no connection to the server')
-
-        socket.close()
     },false)
 
     socket.addEventListener('message', (event)=> {
         if(event.data == 'pong') {
             socket.alive = true
+
+            Markers.live('socket')
 
             return
         } 
@@ -118,7 +118,8 @@ function connect(){
                 Activity.push(result.data)
             }
             else if(result.method == 'timeline'){
-                result.data.received = true //чтоб снова не остправлять и не зациклить
+                //чтоб снова не остправлять и не зациклить
+                result.data.received = true 
 
                 let account = Account.Permit.account
 
@@ -228,7 +229,7 @@ function connect(){
             }
         }
 
-        Markers.pass('socket')
+        Markers.pass('socket', 5)
 
         listener.send('message',result)
     })
@@ -243,30 +244,35 @@ function connect(){
 
             send(msg.method, msg)
         }
-    })
+    }, false, true)
 
     Timer.add(1000 * 30,()=>{
         if(socket && socket.readyState == 1){
+            clearTimeout(ping)
+
             socket.alive = false
-
-            setTimeout(()=>{
-                if(!socket.alive){
-                    console.log('Socket','ping timeout, maybe connection lost')
-                }
-            },2000)
-
             socket.send('ping')
+
+            ping = setTimeout(()=>{
+                if(!socket.alive && socket.readyState == 1){
+                    console.log('Socket','ping timeout, maybe connection lost')
+
+                    Markers.bad('socket')
+                }
+            },15000)
         }
-    })
+    }, false, true)
 }
 
 function send(method, data){
     let name_devise = Platform.get() ? Platform.get() : navigator.userAgent.toLowerCase().indexOf('mobile') > - 1 ? 'mobile' : navigator.userAgent.toLowerCase().indexOf('x11') > - 1 ? 'chrome' : 'other';
 
+    listener.send('send',{method, data})
+
     data.device_id = uid
     data.name      = Utils.capitalizeFirstLetter(name_devise) + ' - ' + Storage.field('device_name')
     data.method    = method
-    data.version   = 1
+    data.version   = 2
     data.account   = Storage.get('account','{}')
     data.premium   = Account.hasPremium()
     data.terminal  = Storage.get('terminal_access', '')

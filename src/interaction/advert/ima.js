@@ -80,6 +80,19 @@ function buildUrl(url){
 }
 
 function getGuid() {
+    try {
+        if (typeof AndroidJS !== 'undefined' && typeof AndroidJS.getAdvertisingId === 'function') {
+            var id = (AndroidJS.getAdvertisingId() || '') + ''
+
+            console.log('Ad', 'Advertising ID:', id)
+
+            if (/^[0-9a-f-]{36}$/i.test(id) && id.indexOf('00000000') !== 0) return id
+        }
+    }
+    catch (e) {
+        console.error('Ad', 'Error getting Advertising ID:', e)
+    }
+
     let guid = Storage.get('vast_device_guid', '')
 
     if(!guid || guid.indexOf('00000000') === 0){

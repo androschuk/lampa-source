@@ -1,3 +1,4 @@
+import 'regenerator-runtime/runtime'
 import Define from './utils/define/define'
 import PromisePolyfill from './utils/define/promise'
 import Manifest from './core/manifest'
@@ -120,6 +121,7 @@ import ServiceDeveloper from './services/developer'
 import ServiceRemoteFavorites from './services/remote_favorites'
 import ServiceDMCA from './services/dmca'
 import ServiceLGBT from './services/lgbt'
+import ServiceKinopoisk from './services/kinopoisk'
 import ServiceFPS from './services/fps'
 import ServiceEvents from './services/events'
 import ServiceChildren from './services/children'
@@ -177,6 +179,8 @@ Arrays.extend(window.lampa_settings,{
         dmca: false,
         // Блокировка ЛГБТ-контента
         lgbt: false,
+        // Кнопка «Смотреть на Кинопоиске» для карточек из списка CUB
+        kinopoisk: false,
         // Реакции
         reactions: false,
         // Обсуждения
@@ -196,7 +200,9 @@ Arrays.extend(window.lampa_settings,{
         // Установка прокси для запросов
         install_proxy: false,
         // Удаленная конфигурация
-        remote_configuration: false
+        remote_configuration: false,
+        // Друзья
+        friends: false
     },
 
     // Подключить другие языки интерфейса, по умолчанию только русский и английский
@@ -497,6 +503,9 @@ function startApp(){
     window.app_time_launch = Date.now()
     window.app_time_end    = 0
 
+    // Удаляем app.js из localStorage, экономим место
+    window.localStorage.removeItem('app.js')
+
     // Стартуем
 
     LoadingProgress.status('Launching the application')
@@ -688,6 +697,9 @@ function startApp(){
 
     ServiceRemoteFavorites.init()
     LoadingProgress.status('ServiceRemoteFavorites init')
+
+    ServiceKinopoisk.init()
+    LoadingProgress.status('ServiceKinopoisk init')
 
     ServiceDMCA.init()
     LoadingProgress.status('ServiceDMCA init')

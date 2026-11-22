@@ -12,6 +12,7 @@ import Episode from '../interaction/episode/episode'
 import Select from '../interaction/select'
 import EpisodeModule from '../interaction/episode/module/module'
 import Arrays from '../utils/arrays'
+import EpisodeMenu from '../interaction/episode/menu'
 
 function choiceSeason(){
     let total  = this.object.seasons_count || Utils.countSeasons(this.object.card)
@@ -59,7 +60,14 @@ function component(object){
 
             Api.seasons(object.card, [season],(v)=>{
                 if(v[season] && v[season].episodes){
-                    object.seasons_count = v[season].seasons_count || Utils.countSeasons(object.card)
+                    let real_count = Utils.countSeasons(object.card)
+
+                    if(real_count > 1){
+                        object.seasons_count = real_count
+
+                        if(v[season].episodes_original) v[season].episodes = v[season].episodes_original
+                    }
+                    else object.seasons_count = v[season].seasons_count || real_count
 
                     Arrays.extend(v[season], {
                         params: {
@@ -81,7 +89,8 @@ function component(object){
 
                         episode.params = {
                             createInstance: ()=> new Episode(episode),
-                            module: EpisodeModule.toggle(EpisodeModule.MASK.base, 'Line')
+                            module: EpisodeModule.toggle(EpisodeModule.MASK.base, 'Line'),
+                            onEnter: (item)=>EpisodeMenu(item, object.card)
                         }
 
                         results.push(episode)

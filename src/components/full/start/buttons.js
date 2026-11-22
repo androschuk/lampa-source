@@ -6,6 +6,8 @@ import Lang from '../../../core/lang'
 import Extensions from '../../../interaction/extensions/extensions'
 import ParentalControl from '../../../interaction/parental_control'
 import Platform from '../../../core/platform'
+import Android from '../../../core/android'
+import Kinopoisk from '../../../services/kinopoisk'
 
 export default {
     onPriorityButton: function(btn){
@@ -13,7 +15,7 @@ export default {
         let clon = btn.clone()
 
         cont.find('.button--priority').remove()
-        
+
         clon.addClass('button--priority').removeClass('view--torrent').on('hover:enter',()=>{
             btn.trigger('hover:enter')
         }).on('hover:long',()=>{
@@ -32,11 +34,32 @@ export default {
         let play = this.html.find('.button--play')
         let btns = this.html.find('.buttons--container > .full-start__button').not('.hide')
 
+        // Карточка из списка CUB: вместо «Смотреть» — «Смотреть на Кинопоиске», открывает приложение Кинопоиск
+        let kinopoisk = Kinopoisk.find(this.card)
+
+        if(kinopoisk && play.length){
+            if(!play.hasClass('button--kinopoisk')){
+                play.addClass('button--kinopoisk').find('span').text(Lang.translate('full_watch_kinopoisk'))
+
+                this.html.find('.full-start-new__buttons .button--priority').remove()
+            }
+
+            play.unbind().on('hover:enter',()=>{
+                Android.openBrowser(kinopoisk.url)
+            }).on('hover:focus', ()=>{
+                this.last = play[0]
+            })
+
+            play.removeClass('hide')
+
+            return
+        }
+
         let priority = Storage.get('full_btn_priority','') + ''
-        
+
         if(priority){
             let priority_button
-            
+
             btns.each(function(){
                 let hash = Utils.hash($(this).clone().removeClass('focus').prop('outerHTML'))
 
@@ -47,70 +70,80 @@ export default {
         }
 
         play.unbind().on('hover:enter',(e)=>{
-            priority = Storage.get('full_btn_priority','') + ''
-
-            btns = this.html.find('.buttons--container > .full-start__button').not('.hide').filter(function(){
-                return priority !== Utils.hash($(this).clone().removeClass('focus').prop('outerHTML'))
-            })
-
-            // Один источник запускаем сразу, только если нельзя добавить ещё (иначе в списке есть «Добавить источник»)
-            if(btns.length == 1 && !window.lampa_settings.plugins_use){
-                btns.trigger('hover:enter')
-            }
-            else{
-                let items = []
-
-                btns.each(function(){
-                    let icon = $(this).find('svg').prop('outerHTML')
-
-                    items.push({
-                        title: $(this).text(),
-                        subtitle: $(this).data('subtitle'),
-                        template: typeof icon == 'undefined' || icon == 'undefined' ? 'selectbox_item' : 'selectbox_icon',
-                        icon: icon,
-                        btn: $(this)
-                    })
-                })
-
-                // Последний пункт — открыть Расширения, чтобы установить ещё источник
-                if(window.lampa_settings.plugins_use && Platform.is('android')){
-                    items.push({
-                        title: Lang.translate('full_add_source'),
-                        template: 'selectbox_icon',
-                        icon: '<svg><use xlink:href="#sprite-plus"></use></svg>',
-                        add_source: true
-                    })
-                }
-
-                Select.show({
-                    title: Lang.translate('settings_rest_source'),
-                    items: items,
-                    onSelect: (a)=>{
-                        if(a.add_source){
-                            Controller.toggle('content')
-
-                            ParentalControl.personal('extensions',()=>{
-                                Extensions.show()
-                            }, false, true)
-                        }
-                        else a.btn.trigger('hover:enter')
-                    },
-                    onLong: (a)=>{
-                        if(a.add_source) return
-
-                        Storage.set('full_btn_priority',Utils.hash(a.btn.clone().removeClass('focus').prop('outerHTML')))
-                        
-                        this.emit('priorityButton', a.btn)
-                    },
-                    onBack: ()=>{
-                        Controller.toggle('content')
-                    }
-                })
-            }
+            this.emit('watch', {})
         }).on('hover:focus', ()=>{
             this.last = play[0]
         })
-        
+
         play.toggleClass('hide',!Boolean(btns.length))
+    },
+    onWatch: function(context = {}){
+        // Карточка из списка CUB (и серии из неё) смотрится только в приложении Кинопоиск
+        let kinopoisk = Kinopoisk.find(this.card)
+
+        if(kinopoisk) return Android.openBrowser(kinopoisk.url)
+
+        let priority = Storage.get('full_btn_priority','') + ''
+
+        let btns = this.html.find('.buttons--container > .full-start__button').not('.hide').filter(function(){
+            return Number.isInteger(context.season) || priority !== Utils.hash($(this).clone().removeClass('focus').prop('outerHTML'))
+        })
+
+        // Один источник запускаем сразу, только если нельзя добавить ещё (иначе в списке есть «Добавить источник»)
+        if(btns.length == 1 && !(window.lampa_settings.plugins_use && Platform.is('android'))){
+            btns.trigger('hover:enter', [context])
+        }
+        else{
+            let items = []
+
+            btns.each(function(){
+                let icon = $(this).find('svg').prop('outerHTML')
+
+                items.push({
+                    title: $(this).text(),
+                    subtitle: $(this).data('subtitle'),
+                    template: typeof icon == 'undefined' || icon == 'undefined' ? 'selectbox_item' : 'selectbox_icon',
+                    icon: icon,
+                    btn: $(this)
+                })
+            })
+
+            // Последний пункт — открыть Расширения, чтобы установить ещё источник
+            if(window.lampa_settings.plugins_use && Platform.is('android')){
+                items.push({
+                    title: Lang.translate('full_add_source'),
+                    template: 'selectbox_icon',
+                    icon: '<svg><use xlink:href="#sprite-plus"></use></svg>',
+                    add_source: true
+                })
+            }
+
+            Select.show({
+                title: Lang.translate('settings_rest_source'),
+                items: items,
+                onSelect: (a)=>{
+                    if(a.add_source){
+                        Controller.toggle('content')
+
+                        ParentalControl.personal('extensions',()=>{
+                            Extensions.show()
+                        }, false, true)
+                    }
+                    else a.btn.trigger('hover:enter', [context])
+                },
+                onLong: (a)=>{
+                    if(a.add_source) return
+
+                    Storage.set('full_btn_priority',Utils.hash(a.btn.clone().removeClass('focus').prop('outerHTML')))
+
+                    this.emit('priorityButton', a.btn)
+                },
+                onBack: ()=>{
+                    if(context.onBack) context.onBack()
+                    else Controller.toggle('content')
+                }
+            })
+        }
     }
+
 }

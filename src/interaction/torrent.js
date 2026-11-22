@@ -19,10 +19,12 @@ import Loading from './loading'
 import Request from '../utils/reguest'
 import subsrt from "../utils/subsrt/subsrt";
 import Keypad from '../core/keypad'
+import {createEta, preloadDetail} from './media_loading_data'
 
 let SERVER = {}
 
 let timers = {}
+let viewed_listener
 
 let callback
 let callback_back
@@ -87,6 +89,11 @@ function open(hash, movie){
     } 
     else if(Torserver.url()){
         loading()
+
+        // из «Мои торренты» соединение не проверяется (connect() пропускается), поэтому gstreamer проверяем здесь,
+        // иначе gst_work остаётся false и ссылка потока строится как /stream при включённом «Транскодировании»
+        Torserver.gstCheck()
+
         files()
     }
     else install()
@@ -278,6 +285,7 @@ function preload(data, run){
         let stopped = false
         let last_bytes  = 0
         let last_change = Date.now()
+        let eta = createEta()
 
         let stop = ()=>{
             stopped = true
@@ -308,9 +316,7 @@ function preload(data, run){
 
                 let pb = res.preloaded_bytes || 0,
                     ps = res.preload_size || 0,
-                    sp = res.download_speed ? Utils.bytesToSize(res.download_speed * 8, true) : '0.0',
-                    active_peers = parseInt(res.active_peers || 0),
-                    total_peers = parseInt(res.total_peers || 0)
+                    sp = res.download_speed ? Utils.bytesToSize(res.download_speed * 8, true) : '0.0'
 
                 let progress = Math.min(100,((pb * 100) / ps ))
 
@@ -325,11 +331,7 @@ function preload(data, run){
                         last_change = Date.now()
                     }
 
-                    Loading.setProgress(progress, {
-                        speed: sp,
-                        active_peers: active_peers,
-                        total_peers: total_peers
-                    })
+                    Loading.setProgress(progress, preloadDetail(res, sp, eta.push(pb, ps, res.download_speed)))
 
                     next()
                 }
@@ -346,6 +348,7 @@ function preload(data, run){
 function list(items, params){
     let html     = $('<div class="torrent-files"></div>')
     let playlist = []
+    let views    = {}
     let scroll_to_element
     let first_item
 
@@ -484,6 +487,8 @@ function list(items, params){
 
         item[0].visibility = 'hidden'
 
+        views[element.id] = {view: view, duration: view.duration, server: serverView ? serverView.timecode || 0 : 0}
+
         if(view.percent > 0) scroll_to_element = item
 
         element.subtitles = parseSubs(element.path, params.files)
@@ -506,7 +511,7 @@ function list(items, params){
             stopAutostart()
 
             // если это андроид, но не андроид, то нефиг смотреть
-            if(navigator.userAgent.toLowerCase().indexOf('android') >= 0 && !Platform.is('android')) return Platform.install('apk')
+            if(navigator.userAgent.toLowerCase().indexOf('android') >= 0 && !Platform.is('android') && !Torserver.gstWork()) return Platform.install('apk')
 
             if(params.movie.id) Favorite.add('history', params.movie, 100)
 
@@ -649,7 +654,42 @@ function list(items, params){
 
     Modal.update(html)
 
+    if(Storage.field('torrserver_tracktimecode')){
+        document.removeEventListener('visibilitychange', viewed_listener)
+
+        viewed_listener = ()=>{
+            if(!document.hidden) refreshViewed(views)
+        }
+
+        document.addEventListener('visibilitychange', viewed_listener)
+    }
+
     if(scroll_to_element) Controller.collectionFocus(scroll_to_element,Modal.scroll().render())
+}
+
+function refreshViewed(views){
+    if(!Storage.field('torrserver_tracktimecode') || !SERVER.hash) return
+
+    Torserver.viewed(SERVER.hash, (viewed)=>{
+        ;(viewed || []).forEach((sv)=>{
+            let item = views[sv.file_index]
+            let time = sv.timecode || 0
+
+            if(!item || time === item.server) return
+
+            item.server = time
+
+            let view = item.view
+
+            if(!view.duration) view.duration = item.duration
+
+            view.time = time
+
+            if(view.duration > 0) view.percent = Math.min(100, Math.round(view.time / view.duration * 100))
+
+            Timeline.update(view)
+        })
+    }, ()=>{})
 }
 
 function autostart(item){
@@ -703,6 +743,8 @@ function close(){
     Torserver.clear()
 
     clearInterval(timers.files)
+
+    document.removeEventListener('visibilitychange', viewed_listener)
 
     if(callback_back){
         callback_back()

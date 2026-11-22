@@ -35,26 +35,46 @@ function load(path, params = {}, post = false){
     })
 }
 
-function persons(secuses, error){
+function persons(success, error){
     if(Permit.access && !window.lampa_settings.disable_features.persons){
         load('person/list').then((data)=>{
             Storage.set('person_subscribes_id', data.results.map(a=>a.person_id))
 
-            if(secuses) secuses(data.results)
+            if(success) success(data.results)
         }).catch(error ? error : ()=>{})
     }
     else if(error) error({decode_code: 403})
 }
 
-function user(secuses, error){
+function user(success, error){
     if(Permit.access){
-        load('users/get?device_name=' + decodeURIComponent(Storage.get('device_name'))).then((data)=>{
+        let token = Permit.token
+
+        // token_update=1 — Lampa умеет заменить старый токен (вход до появления сессий в CUB) на новый, привязанный к сессии устройства
+        load('users/get?device_name=' + decodeURIComponent(Storage.get('device_name')) + '&token_update=1').then((data)=>{
+            // за время запроса могли выйти или сменить аккаунт — тогда новый токен не нужен
+            if(data.token_update && Permit.token === token){
+                let account = Permit.account
+
+                account.token = data.token_update
+
+                Storage.set('account', account, true)
+            }
+
             Storage.set('account_user', JSON.stringify(data.user))
 
-            if(secuses) secuses(data.user)
+            if(success) success(data.user)
         }).catch(error ? error : ()=>{})
     }
     else if(error) error({decode_code: 403})
+}
+
+/**
+ * Выход: завершить сессию этого устройства в CUB, иначе после нового входа в кабинете остаётся её копия.
+ * Вызывать до очистки аккаунта — токен берётся в момент вызова. Ошибка сети не мешает выходу
+ */
+function logout(){
+    load('users/logout', {}, {}).catch(()=>{})
 }
 
 function plugins(call){
@@ -86,7 +106,8 @@ function pluginToggle(plugin, status){
 
 function notices(call){
     if(Permit.access){
-        load('notice/all', {
+        // советы друзей CUB отдаёт только тем, кто их понимает (NoticeCub.friendRecommend)
+        load('notice/all' + (window.lampa_settings.disable_features.friends ? '' : '?with=friend_recommend'), {
             cache: 1000 * 60 * 10
         }).then((result)=>{
             if(result.secuses){
@@ -102,7 +123,7 @@ function notices(call){
     else call([])
 }
 
-function subscribes(params = {}, secuses, error){
+function subscribes(params = {}, success, error){
     if(Permit.access){
         load('notifications/all').then((result)=>{
             if(params.to_card_subscribe){
@@ -117,12 +138,12 @@ function subscribes(params = {}, secuses, error){
                     cards.push(card)
                 })
 
-                secuses({
+                success({
                     results: cards
                 })
             }
             else{
-                secuses({
+                success({
                     results: result.notifications.map(r=> Arrays.decodeJson(r.card,{}))
                 })
             }
@@ -146,10 +167,78 @@ function subscribeToTranslation(params = {}, call, error){
     else if(error) error({decode_code: 403})
 }
 
+/**
+ * История просмотров CUB (watch_history), сгруппированная сервером: group 'card' — одна запись на карточку (все серии, последняя серия, число дней),
+ * 'day' — карточка за день (серии за день, число просмотров). Старая история (закладка history) работает как раньше, эта — только с сервера
+ * @param {{page:integer, filter:string, group:string, friend_id:integer}} params - filter: '' | 'movie' | 'tv', group: 'card' | 'day' (по умолчанию), friend_id — история друга
+ * @param {function} success - {results: [card + card.watch_history], page, total_pages, total}
+ * @param {function} error
+ */
+function watchHistory(params = {}, success, error){
+    if(Permit.access){
+        let page = params.page || 1
+        let type = params.filter == 'movie' || params.filter == 'tv' ? '&type=' + params.filter : ''
+
+        // группы считает сервер по часовому поясу устройства
+        let group = '&group=' + (params.group == 'card' ? 'card' : 'day') + '&tz=' + new Date().getTimezoneOffset()
+
+        // friend_id — история друга (friends/history, тот же формат)
+        let path = params.friend_id ? 'friends/history?friend_id=' + parseInt(params.friend_id) + '&page=' : 'history/list?page='
+
+        load(path + page + type + group).then((result)=>{
+            let results = (result.history || []).map(item=>{
+                let card = Arrays.clone(item.card || {})
+
+                card.watch_history = {
+                    id: item.id,
+                    card_id: item.card_id,
+                    season: item.season,
+                    episode: item.episode,
+                    watched_at: item.watched_at,
+                    first_at: item.first_at || item.watched_at,
+                    source: item.source,
+                    episodes: item.episodes || [],
+                    last: item.last || null,
+                    views: item.views || 1,
+                    days: item.days || 1
+                }
+
+                return card
+            }).filter(card=>card.id)
+
+            success({
+                results,
+                page: result.page,
+                total_pages: result.total_pages,
+                total: result.total
+            })
+        }).catch(error ? error : ()=>{})
+    }
+    else if(error) error({decode_code: 403})
+}
+
+/**
+ * Все просмотры одной карточки (до 1000, новые первыми) — для «Истории по дням»
+ * @param {string} card_id - tv_1399 / movie_603
+ * @param {function} success - [{id, season, episode, watched_at, source}]
+ * @param {function} error
+ */
+function watchHistoryCard(card_id, success, error){
+    if(Permit.access){
+        load('history/card?card_id=' + encodeURIComponent(card_id)).then((result)=>{
+            success(result.history || [])
+        }).catch(error ? error : ()=>{})
+    }
+    else if(error) error({decode_code: 403})
+}
+
 export default {
     url,
+    watchHistory,
+    watchHistoryCard,
     load,
     user,
+    logout,
     persons,
     plugins,
     pluginToggle,

@@ -165,6 +165,18 @@ if (!Math.trunc) {
 	};
 }
 
+if (!Number.isFinite) {
+    Number.isFinite = function (value) {
+        return typeof value === 'number' && isFinite(value);
+    };
+}
+
+if (!Number.isInteger) {
+    Number.isInteger = function (value) {
+        return typeof value === 'number' && isFinite(value) && Math.floor(value) === value;
+    };
+}
+
 // Polyfill для requestAnimationFrame
 window.requestAnimationFrame = 
     window.requestAnimationFrame ||
@@ -312,6 +324,35 @@ if (!Array.prototype.find) {
 
             // 7. Return undefined.
             return undefined;
+        },
+        configurable: true,
+        writable: true
+    });
+}
+// https://tc39.github.io/ecma262/#sec-array.prototype.findindex
+if (!Array.prototype.findIndex) {
+    Object.defineProperty(Array.prototype, 'findIndex', {
+        value: function (predicate) {
+            if (this == null) {
+                throw new TypeError('"this" is null or not defined');
+            }
+
+            var o = Object(this);
+            var len = o.length >>> 0;
+
+            if (typeof predicate !== 'function') {
+                throw new TypeError('predicate must be a function');
+            }
+
+            var thisArg = arguments[1];
+
+            for (var k = 0; k < len; k++) {
+                if (predicate.call(thisArg, o[k], k, o)) {
+                    return k;
+                }
+            }
+
+            return -1;
         },
         configurable: true,
         writable: true

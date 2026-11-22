@@ -14,14 +14,85 @@ import ParentalControl from '../parental_control'
 import Editor from './editor'
 import Utils from '../../utils/utils'
 import Router from '../../core/router'
+import Favorite from '../../core/favorite'
 
 let html
 let last
 let scroll
 let visible_timer
+let modal_box
 
 function menuAlwaysVisible(){
     return Platform.screen('tv') && Storage.field('menu_always')
+}
+
+/**
+ * Меню открывается в Modal, а не выезжает слева (мобильная версия или узкий экран, где выезд сдвигает контент)
+ * @returns {boolean}
+ */
+function modalMode(){
+    return !menuAlwaysVisible() && window.innerWidth <= 480
+}
+
+/**
+ * Открывает меню в Modal: само меню переносится в контейнер окна
+ * @returns {void}
+ */
+function modalOpen(){
+    modal_box = $('<div class="menu-modal"></div>')
+
+    // Выбор пункта: сначала возвращаем меню на место и закрываем окно, потом срабатывают обработчики пункта
+    // (перехват на всплытии не подходит — hover:enter не всплывает, а погружение до пункта проходит через контейнер)
+    modal_box[0].addEventListener('hover:enter', modalSelect, true)
+
+    Modal.open({
+        title: Lang.translate('title_menu'),
+        html: modal_box,
+        size: 'small',
+        onBack: ()=>{
+            modalClose()
+
+            Controller.toggle('content')
+        }
+    })
+
+    // Переносим после open, чтобы Modal не повесил свои обработчики на пункты меню
+    modal_box.append(html)
+
+    Modal.toggle(last)
+}
+
+function modalSelect(){
+    modalClose()
+
+    Controller.toggle('content')
+}
+
+/**
+ * Возвращает меню на место и закрывает Modal
+ * @returns {void}
+ */
+function modalClose(){
+    if(!modal_box) return
+
+    modal_box[0].removeEventListener('hover:enter', modalSelect, true)
+
+    // До Modal.close: он удаляет окно вместе с обработчиками всего, что внутри
+    scroll.append(html)
+
+    modal_box = null
+
+    Modal.close()
+}
+
+/**
+ * Прокрутка к пункту меню — в окне или в боковом меню
+ * @param {HTMLElement} target
+ * @returns {void}
+ */
+function scrollTo(target){
+    if(modal_box) Modal.scroll().update($(target), true)
+    else scroll.update($(target), true)
 }
 
 let menu_items = [
@@ -79,6 +150,9 @@ function init(){
     // Инициализация контроллера меню
     Controller.add('menu',{
         toggle: ()=>{
+            // Controller.toggle('menu') вызывают и из контента (влево с края) — в мобильном режиме открываем окно
+            if(modalMode()) return modalOpen()
+
             Controller.collectionSet(html)
             Controller.collectionFocus(last,html,true)
 
@@ -114,7 +188,8 @@ function init(){
 
     // Закрытие меню по клику вне его области
     $('body').on('mousedown',(e)=>{
-        if(DeviceInput.canClick(e.originalEvent) && opened()){
+        // Окно Modal закрывается по клику вне него само
+        if(DeviceInput.canClick(e.originalEvent) && !modal_box && opened()){
             if(e.originalEvent.clientX > html.outerWidth()) close()
         }
     })
@@ -157,7 +232,7 @@ function observe(){
                         $(s).on('hover:focus',(e)=>{
                             last = e.target
 
-                            scroll.update($(e.target),true)
+                            scrollTo(e.target)
                         }).on('hover:hover hover:touch hover:enter',(e)=>{
                             last = e.target
                         })
@@ -273,13 +348,16 @@ function ready(){
             }, false, true)
         }
 
+        // С синхронизацией CUB — история просмотров с сервера, без неё — локальная, как раньше (Favorite.historyActivity)
         if(action == 'history'){
             ParentalControl.personal('bookmarks',()=>{
-                if(prepared('favorite',['favorite']) || prepared('bookmarks',['bookmarks'])){
-                    Router.call('favorite', {
-                        title: Lang.translate('title_history'),
-                        type: 'history'
-                    })
+                let screen = Favorite.historyActivity()
+
+                if(screen.component == 'watch_history'){
+                    if(prepared('watch_history',['watch_history'])) Router.call('watch_history', screen)
+                }
+                else if(prepared('favorite',['favorite']) || prepared('bookmarks',['bookmarks'])){
+                    Router.call('favorite', screen)
                 }
             }, false, true)
         }
@@ -325,7 +403,7 @@ function ready(){
     }).on('hover:focus',(e)=>{
         last = e.target
 
-        scroll.update($(e.target), true)
+        scrollTo(e.target)
     }).on('hover:hover hover:touch hover:enter',(e)=>{
         last = e.target
     })
@@ -387,7 +465,12 @@ function addButton(svg_icon, title, action){
  * @returns {void}
  */
 function toggle(){
-    if($('body').hasClass('menu--open')) Controller.toggle('content')
+    if(modal_box){
+        modalClose()
+
+        Controller.toggle('content')
+    }
+    else if($('body').hasClass('menu--open')) Controller.toggle('content')
     else Controller.toggle('menu')
 
     Lampa.Listener.send('menu',{type:'toggle'})
@@ -398,7 +481,7 @@ function toggle(){
  * @returns {boolean} Открыто ли меню
  */
 function opened(){
-    return $('body').hasClass('menu--open')
+    return Boolean(modal_box) || $('body').hasClass('menu--open')
 }
 
 /**

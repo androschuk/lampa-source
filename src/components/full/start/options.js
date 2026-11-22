@@ -2,18 +2,31 @@ import Controller from '../../../core/controller'
 import Select from '../../../interaction/select'
 import Activity from '../../../interaction/activity/activity'
 import Lang from '../../../core/lang'
+import Friends from '../../../core/account/friends'
+import Kinopoisk from '../../../services/kinopoisk'
 
 export default {
     onCreate: function(){
         this.html.find('.button--options').on('hover:enter',()=>{
             let options = []
 
-            Lampa.Listener.send('full', {
+            // Карточка Кинопоиска: плагины не добавляют свои пункты (источники)
+            if(!Kinopoisk.find(this.card)) Lampa.Listener.send('full', {
                 link: this,
                 type:'options',
                 props: this.props,
                 options
             })
+
+            // Посоветовать друзьям: окно выбора друзей (Friends.recommend), только с аккаунтом и для карточек tmdb / cub
+            if(Friends.canRecommend(this.card)){
+                options.push({
+                    title: Lang.translate(this.card.original_name || this.card.name ? 'friends_recommend_tv' : 'friends_recommend_movie'),
+                    onSelect: ()=>{
+                        Friends.recommend(this.card, 'content')
+                    }
+                })
+            }
 
             if(!window.lampa_settings.disable_features.ai){
                 if(options.length){

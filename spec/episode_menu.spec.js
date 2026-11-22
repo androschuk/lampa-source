@@ -108,6 +108,7 @@ describe('standard source menu', ()=>{
         let buttons = load('components/full/start/buttons.js', {
             Controller: h.Controller, Select: h.Select, Lang: h.Lang,
             Storage: {get: ()=> 'priority', set: vi.fn()}, Utils: {hash: ()=> 'priority'}, $: wrap,
+            Kinopoisk: {find: ()=>null},
             Platform: {is: ()=>false}, window: {lampa_settings: {plugins_use: true}}
         })
         let owner = {html: {find: ()=>collection}, emit: vi.fn()}

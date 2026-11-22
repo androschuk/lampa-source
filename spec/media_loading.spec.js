@@ -120,7 +120,7 @@ describe('Media loading localization', () => {
     let files = readdirSync(dir).filter(name => name.endsWith('.js') && name !== 'meta.js')
 
     test('covers every language shipped with Lampa', () => {
-        expect(files.length).toBe(13)
+        expect(files.length).toBe(14)
     })
 
     test.each(files)('%s has all preload capsule keys', (name) => {

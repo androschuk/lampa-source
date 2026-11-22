@@ -45,7 +45,7 @@
 @use 'components/player/agent';
 @use 'components/selectbox/box' as selectbox_box;
 @use 'components/selectbox/item';
-@use 'components/selectbox/friend';
+@use 'components/selectbox/friend' as selectbox_friend;
 @use 'components/friend';
 @use 'components/youtube';
 @use 'components/birthday';

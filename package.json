@@ -44,7 +44,7 @@
     "gulp-uglifycss": "^1.1.0",
     "redis": "^4.0.2",
     "regenerator-runtime": "^0.14.1",
-    "rollup": "^4.63.5",
+    "rollup": "^4.68.8",
     "rollup-plugin-regenerator": "^0.6.0",
     "rollup-plugin-web-worker-loader": "^1.6.1",
     "subsrt": "^1.1.1",
